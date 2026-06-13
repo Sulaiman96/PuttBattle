@@ -72,6 +72,7 @@ With the editor open:
 - **VibeUE tools all error** → missing/invalid API key (editor gear icon) or `VIBEUE_API_KEY` env var not visible to the shell that launched `claude`.
 - **`unreal` server won't connect** → `npm install` never ran in `mcp-bridge`, or port 3000 is taken.
 - **Requests hang ~60 s** → upstream-known issue with cloud-synced folders: keep the project **out of OneDrive/Dropbox**.
+- **Both servers "Failed to connect" while the editor ports are up** → npm/npx can't reach the registry because antivirus TLS scanning (Norton on this machine) re-signs HTTPS with a root CA Node doesn't trust (`UNABLE_TO_VERIFY_LEAF_SIGNATURE`). Symptoms: `npm install` dies with "Exit handler never called", `node_modules/@modelcontextprotocol/sdk` empty. Fix (Node ≥ 23): `NODE_OPTIONS=--use-system-ca` makes Node trust the Windows cert store, where the AV root lives — it's pinned in `.mcp.json` for `vibeue` (whose `npx` hits the registry every launch) and needed manually for any `npm install` in `mcp-bridge`. Diagnose with `echo | openssl s_client -connect registry.npmjs.org:443 | openssl x509 -noout -issuer`.
 - **Fresh machine** → plugins vendored: clone repo, build, steps 4–5 only.
 
 ## Fallback plan (if a plugin dies)

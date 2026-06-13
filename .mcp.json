@@ -17,7 +17,10 @@
         "--transport", "http-only",
         "--allow-http",
         "--header", "Authorization:Bearer ${VIBEUE_API_KEY}"
-      ]
+      ],
+      "env": {
+        "NODE_OPTIONS": "--use-system-ca"
+      }
     }
   }
 }
