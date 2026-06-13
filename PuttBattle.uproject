@@ -12,6 +12,10 @@
 	],
 	"Plugins": [
 		{
+			"Name": "PythonScriptPlugin",
+			"Enabled": true
+		},
+		{
 			"Name": "ModelingToolsEditorMode",
 			"Enabled": true,
 			"TargetAllowList": [
@@ -39,11 +43,15 @@
 			"Enabled": true
 		},
 		{
-			"Name": "UnrealClaude",
+			"Name": "UE_MCP_Bridge",
 			"Enabled": true
 		},
 		{
-			"Name": "VibeUE",
+			"Name": "PCG",
+			"Enabled": true
+		},
+		{
+			"Name": "GameplayAbilities",
 			"Enabled": true
 		}
 	]

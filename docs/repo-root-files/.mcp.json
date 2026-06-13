@@ -1,23 +1,8 @@
 {
   "mcpServers": {
-    "unreal": {
-      "type": "stdio",
+    "ue-mcp": {
       "command": "node",
-      "args": ["Plugins/UnrealClaude/Resources/mcp-bridge/index.js"],
-      "env": {
-        "UNREAL_MCP_URL": "http://localhost:3000"
-      }
-    },
-    "vibeue": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y", "mcp-remote",
-        "http://127.0.0.1:8088/mcp",
-        "--transport", "http-only",
-        "--allow-http",
-        "--header", "Authorization:Bearer ${VIBEUE_API_KEY}"
-      ]
+      "args": ["node_modules/ue-mcp/dist/index.js", "PuttBattle.uproject"]
     }
   }
 }

@@ -1,6 +1,10 @@
-# Phase 0 — Foundation
+# Phase 0 — Foundation ✅ COMPLETE 2026-06-13
 
 **Context:** Empty start. Read `CONVENTIONS.md` fully first — this phase creates the things it references.
+
+> **Status:** All three tasks complete; UA-1…8 done by the human; both MCP servers verified
+> connecting. The only carry-over is editor *content* authoring (bootstrap map + input assets),
+> which requires the Phase-1 module and is now tracked in `plans/01`.
 
 ## T0.1 — Project bootstrap ✅ COMPLETED 2026-06-13
 > Commit `749aaab`. Game target builds clean; Steam OSS (dev AppId 480), Steam NetDriver,
@@ -35,13 +39,22 @@
 - Stub C++ skeleton folders per CONVENTIONS §1 with a placeholder class each so the layout is locked in.
 **Done when:** project compiles; tags appear in editor tag picker; a fresh Claude Code session, given only the repo, correctly answers "where does a new powerup's code and asset go?"
 
-## T0.3 — Editor MCP integration 🔶 AGENT WORK DONE 2026-06-13 — awaiting UA-4…7
+## T0.3 — Editor MCP integration ✅ COMPLETED 2026-06-13
+> **⚠️ Superseded 2026-06-13:** the two-plugin setup below (UnrealClaude + VibeUE) was consolidated onto a
+> single `ue-mcp` server — both plugins removed. See `docs/DECISIONS.md` D-6 and the rewritten
+> `docs/MCP-SETUP.md`. The historical record stays here as-is.
 > Branch `phase/00-foundation`. Both plugins vendored (inner `.git` stripped): UnrealClaude
 > cloned `--recurse-submodules`, nested folder flattened so `Plugins/UnrealClaude/UnrealClaude.uplugin`
 > + `Resources/mcp-bridge/index.js` resolve per `.mcp.json`; VibeUE verified complete. Bridge
 > `npm install` done. `.mcp.json` + `.claude/settings.json` placed at root; VibeUE `@import`
-> added to `CLAUDE.md`; both plugins enabled in `.uproject`. Remaining: human UA-4…7, then the
-> MCP verification checklist + deferred editor items (L_Bootstrap map, IMC_Putt inputs, UA-8).
+> added to `CLAUDE.md`; both plugins enabled in `.uproject`.
+> **UA-4…8 confirmed done by the human** (VibeUE key + env var, plugin/auto-approve GUI checks,
+> first-run server approval, guardrail watch). MCP verification passes: `unreal_status` returns
+> `PuttBattle (5.7.4-…)` and both `unreal` + `vibeue` servers connect from a fresh `claude` session.
+> Deferred *editor content* items (`L_Bootstrap.umap`, `IMC_Putt` + `IA_*` input assets, packaged-build
+> launch check, collision-channel/tag-picker visual confirmation) are now folded into the **Phase 1
+> editor content pass** — they need the Phase-1 game module loaded in the editor, so they belong there,
+> not blocking Phase 0 closure.
 
 **Goal:** Every future Claude Code session controls the Unreal editor with zero per-session setup.
 **Agent does:** clone both plugins into `Plugins/` (UnrealClaude with `--recurse-submodules`; fix its nested-folder layout per MCP-SETUP §1), `npm install` the bridge, build, vendor (strip inner `.git`, commit), place `.mcp.json` + `.claude/settings.json` at repo root, add the VibeUE rules import line to `CLAUDE.md`, then drive the MCP-SETUP verification checklist.

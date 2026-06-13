@@ -1,81 +1,109 @@
-# MCP Setup — Claude Code ↔ Unreal Editor
+# MCP Setup — Claude Code ↔ Unreal Editor (ue-mcp)
 
-This wires two editor MCP servers into the repo so **every future Claude Code session gets Unreal editor control automatically** — no per-session configuration. Verified against both repos on 12 Jun 2026; both target **EngineVersion 5.7.0**, matching this project.
+This wires **one** editor MCP server into the repo so every Claude Code session gets Unreal editor
+control automatically — no per-session configuration.
 
-| Server | Plugin | What it's for |
+| Server | Package / plugin | What it's for |
 |---|---|---|
-| `unreal` | [Natfii/UnrealClaude](https://github.com/Natfii/UnrealClaude) v1.5 | Actors, levels, viewport capture, console commands, output log, async tasks, **UE 5.7 docs on demand** (`unreal_get_ue_context`) |
-| `vibeue` | [kevinpbuckley/VibeUE](https://github.com/kevinpbuckley/VibeUE) v4.0 | Blueprints, materials, assets, Niagara, UMG, gameplay tags — 32 Python services / 1000+ methods, 35 lazy-loaded skill packs |
+| `ue-mcp` | [db-lyon/ue-mcp](https://github.com/db-lyon/ue-mcp) (npm `ue-mcp`) + `UE_MCP_Bridge` C++ plugin | Everything: levels/actors, Blueprints, materials, Niagara, assets, PIE, console — 20 category tools / 500+ actions, one server |
 
-How it connects: each plugin runs an HTTP server **inside the open editor** (UnrealClaude on `:3000`, VibeUE on `:8088`). Claude Code talks to them via the two stdio entries in `.mcp.json` at the repo root. **The editor must be open for the tools to work** — that's by design; the agent is driving your live editor.
+**Why one server (was two).** This project originally ran `unreal` (UnrealClaude) + `vibeue` (VibeUE).
+VibeUE would not connect reliably (its in-editor service + API-key remote bridge kept dropping), and both
+were young single-maintainer plugins. We executed the pre-agreed consolidation onto `ue-mcp` — the
+fallback named in the prior version of this file — see `docs/DECISIONS.md` **D-6**. `ue-mcp` is a single
+actively-maintained server broad enough to replace both. Do **not** reintroduce the old two alongside it:
+overlapping servers mean tool-choice ambiguity and context bloat.
 
----
-
-## One-time setup — task T0.3
-
-**Division of labour:** steps 1–3 below (clone, build, npm) are **agent-executable** — let Claude Code run them as part of T0.3. Steps 4–7 are **yours**: account + API key (UA-4/5), editor GUI toggles (UA-6), first-run server approval (UA-7). Full human list: `USER-ACTIONS.md`.
-
-**Prereqs:** UE 5.7 installed · Node.js 18+ · Git · Claude Code CLI.
-
-### 1. Install the plugins
-```bash
-cd <repo>/Plugins
-git clone --recurse-submodules https://github.com/Natfii/UnrealClaude.git
-git clone https://github.com/kevinpbuckley/VibeUE.git
-```
-UnrealClaude's MCP bridge is a **submodule** — if `Plugins/UnrealClaude/UnrealClaude/Resources/mcp-bridge` is empty, run `git submodule update --init` inside it. Note UnrealClaude nests its plugin: the `.uplugin` lives at `UnrealClaude/UnrealClaude/` — move the inner folder up so the path is `Plugins/UnrealClaude/UnrealClaude.uplugin` (keep `Resources/mcp-bridge` with it), or adjust `.mcp.json` to the actual `index.js` path. **Whatever you choose, the `args` path in `.mcp.json` must point at the real `index.js`.**
-
-**Vendoring decision (recommended):** delete the two inner `.git` folders and commit the plugins to the repo. This pins exact versions — agents can't be broken by an upstream push — and a fresh clone works immediately. Upgrading becomes a deliberate re-clone, which is what you want.
-
-### 2. Build
-Right-click `PuttBattle.uproject` → Generate project files → build the project (project-level source plugins compile with it). If UnrealClaude complains, use its standalone route from the README: `RunUAT.bat BuildPlugin -Plugin=...`. VibeUE also ships `Plugins/VibeUE/BuildPlugin.bat "C:\Program Files\Epic Games\UE_5.7"` as a fallback.
-
-### 3. Bridge dependencies
-```bash
-cd Plugins/UnrealClaude/Resources/mcp-bridge
-npm install
-```
-
-### 4. Editor configuration
-1. Open the editor → Plugins browser → confirm **Unreal Claude** and **VibeUE** are enabled (Editor category) → restart if prompted.
-2. **VibeUE API key (required):** Tools → VibeUE → AI Chat → ⚙️ gear → paste a free key from vibeue.com/login → Save. Without it, every VibeUE MCP tool errors at startup.
-3. **Project Settings → Plugins → Unreal Claude → Auto-approve script execution: leave OFF.** Turn it on later only if per-script confirmation becomes genuine friction — it's the difference between the agent asking before running Python in your editor and not asking.
-
-### 5. Environment variable (the key, never committed)
-`.mcp.json` references `${VIBEUE_API_KEY}` so the secret stays out of Git. Set it once (same key as step 4):
-```powershell
-setx VIBEUE_API_KEY "vk_..."   # Windows — then restart your terminal
-```
-
-### 6. CLAUDE.md import
-After plugins are installed, add this line near the top of the repo `CLAUDE.md` (it inlines VibeUE's agent rules — don't add it before the file exists or the import warns):
-```markdown
-@Plugins/VibeUE/Content/samples/AGENTS.md.sample
-```
-
-### 7. First run
-Launch `claude` **from the repo root** (the `.mcp.json` paths are root-relative). Claude Code will ask you to approve the project's MCP servers — approve both. `.claude/settings.json` pre-approves the read-only tools (status, docs context, discovery, skills, logs); anything that *changes* the editor (Python execution, asset ops, actor spawn/delete) prompts per-use until you deliberately add it to the allow list.
+How it connects: a TypeScript MCP server (run by `npx ue-mcp …` per `.mcp.json`) talks JSON-RPC over a
+**WebSocket on `ws://localhost:9877`** to the `UE_MCP_Bridge` C++ plugin running **inside the open
+editor**. The editor must be open for tools to work — by design; the agent drives your live editor.
+Supported: Windows UE **5.4–5.7** (we're 5.7).
 
 ---
 
-## Verification checklist
-With the editor open:
-1. `curl http://localhost:3000/mcp/status` → JSON with project info (UnrealClaude up).
-2. `netstat -ano | findstr :8088` → listening (VibeUE up).
-3. In Claude Code: `/mcp` → both `unreal` and `vibeue` show **connected**.
-4. Prompt: *"Call unreal_status"* → returns project/context info.
-5. Prompt: *"discover_python_module('unreal', name_filter='Blueprint')"* → returns classes (proves the API key is valid).
-6. Prompt: *"Spawn a cube at the origin, screenshot the viewport, then delete the cube."* → expect permission prompts for the spawn/delete (correct — they're not allowlisted), and a screenshot you can see.
+## One-time setup — interactive (yours: UA-4…7)
+
+The installer (`npx ue-mcp init`) is an **interactive wizard with no unattended flags**, it deploys a C++
+plugin that must compile, and it offers to enable plugins — so it's a human step. The agent does the repo
+plumbing (removing the old plugins, the `.mcp.json`/`.uproject`/docs edits) and the post-install vendor +
+verify; you run the wizard.
+
+**Prereqs:** UE 5.7 · Node.js 18+ · Claude Code CLI. **Close the Unreal editor first.**
+
+### 1. Run the wizard (UA-4) — from the repo root
+```bash
+cd "<repo root, the folder with PuttBattle.uproject>"
+npx ue-mcp init
+```
+It will: auto-detect `PuttBattle.uproject`; ask **which tool categories to enable**; deploy the bridge to
+`Plugins/UE_MCP_Bridge/`; offer to enable UE plugins; and configure your MCP client (pick **Claude Code**).
+
+### 2. Decline GAS (UA-5) — **critical (D22)**
+When the wizard lists tool categories / plugins to enable, **do not enable GameplayAbilities / GAS** (or
+any ability-system category). This project deliberately does not use GAS. Enhanced Input and Niagara are
+already on; leaving the rest at the wizard's sensible defaults is fine. (The agent re-checks `.uproject`
+afterward and strips `GameplayAbilities` if it slipped in.)
+
+### 3. Compile the bridge + restart (UA-6)
+Open the editor. When it asks **"compile UE_MCP_Bridge?"** click **Yes** (first compile ~30–60 s). Let it
+finish loading. If prompted that the project needs rebuilding, allow it.
+
+### 4. First run + approval (UA-7)
+Launch `claude` from the repo root. Approve the project's `ue-mcp` MCP server when prompted. Per-use
+permission prompts for editor-mutating actions are expected — that's the guardrail (see Security posture).
+
+---
+
+## Committed config — **`node`-direct, not `npx`** (Windows fix)
+`.mcp.json` at the repo root (also mirrored in `docs/repo-root-files/`):
+```json
+{
+  "mcpServers": {
+    "ue-mcp": { "command": "node", "args": ["node_modules/ue-mcp/dist/index.js", "PuttBattle.uproject"] }
+  }
+}
+```
+**Why not `npx`** (this bit us — see DECISIONS D-6): `npx ue-mcp init` writes a `"command": "npx"` server,
+but on Windows + Node ≥ 22 Claude Code cannot spawn it — `npx` resolves to a `.cmd` shim that Node refuses
+to spawn (`ENOENT`/`EINVAL`), and a `cmd /c npx` wrapper doesn't forward the child's stdio (the MCP handshake
+never completes). This is the same failure that killed the old `npx`-based `vibeue`. The fix is to invoke
+**`node` on the package's entry script directly** — `node.exe` spawns cleanly and starts in ~250 ms (vs
+~7 s for npx cold-start). Paths are **relative** (Claude runs from the repo root) so the entry is portable.
+
+**Restoring `node_modules` on a fresh clone:** `ue-mcp` is a `devDependency` in the repo `package.json`;
+run **`npm install`** after cloning to populate `node_modules/ue-mcp`. (`node_modules/` is git-ignored.) If
+`npm install` stalls, `npx ue-mcp init` also re-installs it; the entry path stays the same.
+
+**Vendoring the bridge:** commit `Plugins/UE_MCP_Bridge/` (Source + `.uplugin` only) so a fresh clone + build
+works. Its `Binaries/`/`Intermediate/` are git-ignored (already, by the UE `.gitignore`).
+
+**GameplayAbilities note (D22):** `UE_MCP_Bridge.uplugin` lists `GameplayAbilities` as a hard dependency, so
+the engine keeps it enabled — it can't be removed without breaking the dev tool. That does **not** violate
+D22: `ue-mcp.yml` disables the `gas` tool category (so no GAS is ever authored), and **no game module
+depends on GameplayAbilities**. GAS stays enabled-but-unused, for the editor tool only.
+
+## Verification checklist (editor open)
+1. `netstat -ano | findstr 9877` → the bridge is listening.
+2. In Claude Code: `/mcp` → `ue-mcp` shows **connected**.
+3. Prompt: *"Call ue-mcp project get_status"* → returns project/engine info.
+4. Prompt: *"Get the level outliner"* (`level(action="get_outliner")`) → read works.
+5. Prompt: *"Place a cube at the origin, then delete it."* → expect a **permission prompt** on the write
+   (correct — mutating actions aren't pre-approved), and the cube appears/disappears in the viewport.
 
 ## Troubleshooting
-- **Tools listed but every call fails** → the editor isn't open, or the plugin didn't load (check Output Log for `LogUnrealClaude` / VibeUE startup lines).
-- **VibeUE tools all error** → missing/invalid API key (editor gear icon) or `VIBEUE_API_KEY` env var not visible to the shell that launched `claude`.
-- **`unreal` server won't connect** → `npm install` never ran in `mcp-bridge`, or port 3000 is taken.
-- **Requests hang ~60 s** → upstream-known issue with cloud-synced folders: keep the project **out of OneDrive/Dropbox**.
-- **Fresh machine** → plugins vendored: clone repo, build, steps 4–5 only.
+- **Tools listed but every call fails** → editor not open, or `UE_MCP_Bridge` didn't load/compile (check
+  Output Log for the bridge's startup lines; re-trigger the compile).
+- **`/mcp` shows ue-mcp not connected** → editor closed / bridge not loaded; OR `node_modules/ue-mcp` is
+  missing (run `npm install`); OR someone reverted `.mcp.json` back to a `npx` command (see "Why not npx"
+  above — it must be `node node_modules/ue-mcp/dist/index.js`). Verify quickly with `claude mcp list`.
+  Re-run `claude` (or `/mcp` → reconnect) after the editor is fully loaded.
+- **GAS got enabled** → remove the `GameplayAbilities` plugin entry from `PuttBattle.uproject` (D22).
+- **Requests hang ~60 s** → keep the project **out of OneDrive/Dropbox** (cloud-sync stalls file watches).
+- **Fresh machine** → bridge is vendored: clone repo, build, then steps 3–4 only (no re-init needed unless
+  changing tool categories).
 
-## Fallback plan (if a plugin dies)
-Both plugins are young open-source projects; abandonment or breakage on an engine update is a real risk. The designated fallback is **`ue-mcp`** (npm, `npx ue-mcp init` — db-lyon.github.io/ue-mcp): a single actively-maintained server broad enough to replace *both* plugins (levels/actors + Blueprints/materials/assets, own C++ bridge plugin). **Trigger condition:** a current plugin is broken for >1 task and unmaintained upstream — then consolidate onto ue-mcp (swap `.mcp.json`, redo the permission allowlist, update CONVENTIONS §11's division of labour). Do NOT run it alongside the current two: three overlapping servers means tool-choice ambiguity and context bloat for every agent session. If executing this plan: during `npx ue-mcp init`, select only needed tool categories and **decline any GAS-related plugin enables** (D22); vendor its deployed bridge plugin (strip `.git`, commit) like the others.
-
-## Security posture (read once, it matters)
-These tools let an AI run Python in your editor and modify your project. The guardrails, in order: project files are in Git (any session's damage is a `git checkout` away — commit before big agent sessions); destructive tools are not pre-approved; auto-approve script execution stays OFF until trust is earned; the API key lives in your environment, not the repo. Agent-facing rules live in `CLAUDE.md` §11.
+## Security posture (read once)
+This server lets an AI modify your project and run editor scripts. Guardrails, in order: project files are
+in Git (any session's damage is a `git checkout` away — commit before big agent sessions); mutating tools
+are **not** pre-approved (`.claude/settings.json` ships an empty allow-list — you approve per-use, or add
+specific read-only actions yourself); the bridge only listens on `localhost`. Agent-facing rules: `CLAUDE.md` §11.
