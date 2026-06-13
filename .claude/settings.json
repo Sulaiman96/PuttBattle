@@ -1,15 +1,6 @@
 {
   "permissions": {
-    "allow": [
-      "mcp__unreal__unreal_status",
-      "mcp__unreal__unreal_get_ue_context",
-      "mcp__vibeue__discover_python_module",
-      "mcp__vibeue__discover_python_class",
-      "mcp__vibeue__discover_python_function",
-      "mcp__vibeue__list_python_subsystems",
-      "mcp__vibeue__manage_skills",
-      "mcp__vibeue__read_logs"
-    ],
+    "allow": [],
     "deny": []
   }
 }

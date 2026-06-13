@@ -69,3 +69,19 @@ definition) for Chaos contacts/bounces.
 bounciness stays where the engine expects it. The pure model is `ComputeRollDeceleration`, shared with the
 automation test so feel changes are regression-checked.
 **Touches:** `Surfaces/PBSurfaceSamplerComponent.*`, `Surfaces/PBPhysicalMaterial.*`.
+
+### D-6 — Consolidate editor MCP onto `ue-mcp` (drop UnrealClaude + VibeUE)   (2026-06-13)
+**Context:** The two-server setup (UnrealClaude `unreal` + VibeUE `vibeue`) was fragile: VibeUE would not
+stay connected (its in-editor service + API-key remote bridge kept dropping; after an editor restart the
+session's MCP clients couldn't re-register its tools at all), blocking the Phase 1–2 editor content pass.
+Both were young single-maintainer plugins. The `ue-mcp` fallback was pre-agreed in `MCP-SETUP.md`.
+**Decision:** Execute the consolidation — delete both vendored plugins and all their config/doc references,
+switch `.mcp.json` to a single `ue-mcp` server (TS server + `UE_MCP_Bridge` C++ plugin, `ws://localhost:9877`).
+**Why:** One actively-maintained server covers both domains (levels/actors + Blueprints/materials/assets),
+removing the VibeUE key/remote-bridge moving parts and the two-server tool-choice ambiguity. The trigger
+condition in the old fallback plan ("a plugin broken for >1 task") was met. Rejected: keep fighting the
+VibeUE connection (sunk-cost; root cause is upstream).
+**Constraints carried forward:** the `ue-mcp init` wizard offers to enable **GAS/GameplayAbilities** — must
+be declined (D22); vendor `Plugins/UE_MCP_Bridge` (strip `.git`, commit) like the old plugins.
+**Touches:** `.mcp.json`, `PuttBattle.uproject`, `CLAUDE.md` §11, `docs/CONVENTIONS.md` §11,
+`docs/MCP-SETUP.md`, `docs/USER-ACTIONS.md` (UA-4…7), `docs/repo-root-files/*`, `Plugins/` (removed both).

@@ -40,6 +40,9 @@
 **Done when:** project compiles; tags appear in editor tag picker; a fresh Claude Code session, given only the repo, correctly answers "where does a new powerup's code and asset go?"
 
 ## T0.3 — Editor MCP integration ✅ COMPLETED 2026-06-13
+> **⚠️ Superseded 2026-06-13:** the two-plugin setup below (UnrealClaude + VibeUE) was consolidated onto a
+> single `ue-mcp` server — both plugins removed. See `docs/DECISIONS.md` D-6 and the rewritten
+> `docs/MCP-SETUP.md`. The historical record stays here as-is.
 > Branch `phase/00-foundation`. Both plugins vendored (inner `.git` stripped): UnrealClaude
 > cloned `--recurse-submodules`, nested folder flattened so `Plugins/UnrealClaude/UnrealClaude.uplugin`
 > + `Resources/mcp-bridge/index.js` resolve per `.mcp.json`; VibeUE verified complete. Bridge

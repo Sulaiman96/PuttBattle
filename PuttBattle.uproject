@@ -37,14 +37,6 @@
 		{
 			"Name": "Niagara",
 			"Enabled": true
-		},
-		{
-			"Name": "UnrealClaude",
-			"Enabled": true
-		},
-		{
-			"Name": "VibeUE",
-			"Enabled": true
 		}
 	]
 }
