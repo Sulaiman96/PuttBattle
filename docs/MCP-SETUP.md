@@ -74,5 +74,8 @@ With the editor open:
 - **Requests hang ~60 s** → upstream-known issue with cloud-synced folders: keep the project **out of OneDrive/Dropbox**.
 - **Fresh machine** → plugins vendored: clone repo, build, steps 4–5 only.
 
+## Fallback plan (if a plugin dies)
+Both plugins are young open-source projects; abandonment or breakage on an engine update is a real risk. The designated fallback is **`ue-mcp`** (npm, `npx ue-mcp init` — db-lyon.github.io/ue-mcp): a single actively-maintained server broad enough to replace *both* plugins (levels/actors + Blueprints/materials/assets, own C++ bridge plugin). **Trigger condition:** a current plugin is broken for >1 task and unmaintained upstream — then consolidate onto ue-mcp (swap `.mcp.json`, redo the permission allowlist, update CONVENTIONS §11's division of labour). Do NOT run it alongside the current two: three overlapping servers means tool-choice ambiguity and context bloat for every agent session. If executing this plan: during `npx ue-mcp init`, select only needed tool categories and **decline any GAS-related plugin enables** (D22); vendor its deployed bridge plugin (strip `.git`, commit) like the others.
+
 ## Security posture (read once, it matters)
 These tools let an AI run Python in your editor and modify your project. The guardrails, in order: project files are in Git (any session's damage is a `git checkout` away — commit before big agent sessions); destructive tools are not pre-approved; auto-approve script execution stays OFF until trust is earned; the API key lives in your environment, not the repo. Agent-facing rules live in `CLAUDE.md` §11.
