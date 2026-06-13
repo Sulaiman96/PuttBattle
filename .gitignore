@@ -53,3 +53,6 @@ UpgradeLog.htm
 # --- OS cruft ---
 .DS_Store
 Thumbs.db
+
+# --- Claude Code per-machine local settings (shared settings.json stays tracked) ---
+.claude/settings.local.json
