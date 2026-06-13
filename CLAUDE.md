@@ -71,7 +71,8 @@ A task is done only when:
 5. Any new tag/channel/asset path is reflected in this file or the plan file.
 
 ## 9. Git
-Git + LFS (`*.uasset, *.umap, *.png, *.fbx, *.wav` in `.gitattributes`). Never commit `Intermediate/`, `Saved/`, `DerivedDataCache/`, `Binaries/`. Branch per phase (`phase/03-multiplayer-core`); conventional commits (`feat:`, `fix:`, `test:`, `content:`). Binary assets: one author at a time — coordinate before touching shared maps.
+Git + LFS (`*.uasset, *.umap, *.png, *.fbx, *.wav` in `.gitattributes`). Never commit `Intermediate/`, `Saved/`, `DerivedDataCache/`, `Binaries/`. Branch per phase (`phase/03-multiplayer-core`); conventional commits (`feat:`, `fix:`, `test:`, `content:`). Binary assets: one author at a time — coordinate before touching shared maps. **Never `git push`** — the human reviews and pushes. **No commit trailers** (no `Co-Authored-By`); keep messages concise.
+- **PR summary per part:** every plan part/phase you implement gets a markdown summary at `docs/pr/phase-NN-<name>.md` (what shipped + where, verification evidence, known issues, and any remaining human/editor steps), written before that part's final commit. Mark the matching `docs/plans/*.md` tasks with status + date in the same pass.
 
 ## 10. Agent operating rules
 - Read this file + your task's plan file before any code. Confirm acceptance criteria first; build toward them.
