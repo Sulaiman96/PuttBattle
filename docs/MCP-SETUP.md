@@ -54,22 +54,33 @@ permission prompts for editor-mutating actions are expected — that's the guard
 
 ---
 
-## Committed config
+## Committed config — **`node`-direct, not `npx`** (Windows fix)
 `.mcp.json` at the repo root (also mirrored in `docs/repo-root-files/`):
 ```json
 {
   "mcpServers": {
-    "ue-mcp": { "command": "npx", "args": ["ue-mcp", "PuttBattle.uproject"] }
+    "ue-mcp": { "command": "node", "args": ["node_modules/ue-mcp/dist/index.js", "PuttBattle.uproject"] }
   }
 }
 ```
-We keep the `.uproject` path **relative** so a fresh clone works on any machine (Claude is always launched
-from the repo root). If `npx ue-mcp init` rewrites it to an absolute path, the agent restores the relative
-form during verification.
+**Why not `npx`** (this bit us — see DECISIONS D-6): `npx ue-mcp init` writes a `"command": "npx"` server,
+but on Windows + Node ≥ 22 Claude Code cannot spawn it — `npx` resolves to a `.cmd` shim that Node refuses
+to spawn (`ENOENT`/`EINVAL`), and a `cmd /c npx` wrapper doesn't forward the child's stdio (the MCP handshake
+never completes). This is the same failure that killed the old `npx`-based `vibeue`. The fix is to invoke
+**`node` on the package's entry script directly** — `node.exe` spawns cleanly and starts in ~250 ms (vs
+~7 s for npx cold-start). Paths are **relative** (Claude runs from the repo root) so the entry is portable.
 
-**Vendoring:** commit `Plugins/UE_MCP_Bridge/` to the repo (strip any inner `.git`), exactly as the old
-plugins were vendored — this pins the bridge version so a fresh clone + build just works. Never commit the
-plugin's `Binaries/`, `Intermediate/`.
+**Restoring `node_modules` on a fresh clone:** `ue-mcp` is a `devDependency` in the repo `package.json`;
+run **`npm install`** after cloning to populate `node_modules/ue-mcp`. (`node_modules/` is git-ignored.) If
+`npm install` stalls, `npx ue-mcp init` also re-installs it; the entry path stays the same.
+
+**Vendoring the bridge:** commit `Plugins/UE_MCP_Bridge/` (Source + `.uplugin` only) so a fresh clone + build
+works. Its `Binaries/`/`Intermediate/` are git-ignored (already, by the UE `.gitignore`).
+
+**GameplayAbilities note (D22):** `UE_MCP_Bridge.uplugin` lists `GameplayAbilities` as a hard dependency, so
+the engine keeps it enabled — it can't be removed without breaking the dev tool. That does **not** violate
+D22: `ue-mcp.yml` disables the `gas` tool category (so no GAS is ever authored), and **no game module
+depends on GameplayAbilities**. GAS stays enabled-but-unused, for the editor tool only.
 
 ## Verification checklist (editor open)
 1. `netstat -ano | findstr 9877` → the bridge is listening.
@@ -82,8 +93,10 @@ plugin's `Binaries/`, `Intermediate/`.
 ## Troubleshooting
 - **Tools listed but every call fails** → editor not open, or `UE_MCP_Bridge` didn't load/compile (check
   Output Log for the bridge's startup lines; re-trigger the compile).
-- **`/mcp` shows ue-mcp not connected** → editor closed, port 9877 taken, or `npx` can't fetch the package
-  (network). Re-run `claude` after the editor is fully loaded.
+- **`/mcp` shows ue-mcp not connected** → editor closed / bridge not loaded; OR `node_modules/ue-mcp` is
+  missing (run `npm install`); OR someone reverted `.mcp.json` back to a `npx` command (see "Why not npx"
+  above — it must be `node node_modules/ue-mcp/dist/index.js`). Verify quickly with `claude mcp list`.
+  Re-run `claude` (or `/mcp` → reconnect) after the editor is fully loaded.
 - **GAS got enabled** → remove the `GameplayAbilities` plugin entry from `PuttBattle.uproject` (D22).
 - **Requests hang ~60 s** → keep the project **out of OneDrive/Dropbox** (cloud-sync stalls file watches).
 - **Fresh machine** → bridge is vendored: clone repo, build, then steps 3–4 only (no re-init needed unless

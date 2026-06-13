@@ -1,0 +1,9 @@
+{
+  "name": "puttbattle-tooling",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local dev tooling for Putt Battle — the ue-mcp editor MCP server. Not part of the Unreal build; run `npm install` after cloning to restore it.",
+  "devDependencies": {
+    "ue-mcp": "^1.0.79"
+  }
+}

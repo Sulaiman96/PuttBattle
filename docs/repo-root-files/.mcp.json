@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "ue-mcp": {
-      "command": "npx",
-      "args": ["ue-mcp", "PuttBattle.uproject"]
+      "command": "node",
+      "args": ["node_modules/ue-mcp/dist/index.js", "PuttBattle.uproject"]
     }
   }
 }

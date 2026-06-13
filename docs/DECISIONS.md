@@ -81,7 +81,20 @@ switch `.mcp.json` to a single `ue-mcp` server (TS server + `UE_MCP_Bridge` C++ 
 removing the VibeUE key/remote-bridge moving parts and the two-server tool-choice ambiguity. The trigger
 condition in the old fallback plan ("a plugin broken for >1 task") was met. Rejected: keep fighting the
 VibeUE connection (sunk-cost; root cause is upstream).
-**Constraints carried forward:** the `ue-mcp init` wizard offers to enable **GAS/GameplayAbilities** — must
-be declined (D22); vendor `Plugins/UE_MCP_Bridge` (strip `.git`, commit) like the old plugins.
+**Constraints carried forward:** vendor `Plugins/UE_MCP_Bridge` (Source + `.uplugin`, commit) like the old
+plugins.
 **Touches:** `.mcp.json`, `PuttBattle.uproject`, `CLAUDE.md` §11, `docs/CONVENTIONS.md` §11,
-`docs/MCP-SETUP.md`, `docs/USER-ACTIONS.md` (UA-4…7), `docs/repo-root-files/*`, `Plugins/` (removed both).
+`docs/MCP-SETUP.md`, `docs/USER-ACTIONS.md` (UA-4…7), `docs/repo-root-files/*`, `Plugins/`.
+
+**Resolution (2026-06-13) — two gotchas fixed during install:**
+1. **Windows can't spawn `npx` MCP servers.** The wizard wrote `"command": "npx"`; Claude Code (Node ≥ 22)
+   failed to connect — `npx` is a `.cmd` shim Node won't spawn (`ENOENT`/`EINVAL`), and `cmd /c npx`
+   doesn't forward the child's stdio. Verified by spawning each form like Claude does. **Fix:** invoke
+   `node` directly on the entry — `node node_modules/ue-mcp/dist/index.js PuttBattle.uproject` — which
+   spawns cleanly and starts in ~250 ms. `ue-mcp` is pinned as a `devDependency` (repo `package.json`,
+   `node_modules/` git-ignored) so `npm install` restores it. This is also, in hindsight, why the old
+   `npx`-based `vibeue` never connected while the `node`-based `unreal` did.
+2. **GAS got force-enabled by the bridge, and that's OK.** `UE_MCP_Bridge.uplugin` hard-depends on
+   `GameplayAbilities`, so it can't be removed without breaking the tool. D22 is satisfied a different way:
+   `ue-mcp.yml` disables the `gas` tool category (no GAS authoring) and **no game module** uses GAS. GAS is
+   enabled-but-unused, editor-tool-only. (`PCG`/`foliage` categories likewise disabled.)

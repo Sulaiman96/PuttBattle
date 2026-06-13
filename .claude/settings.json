@@ -2,5 +2,18 @@
   "permissions": {
     "allow": [],
     "deny": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__ue-mcp__editor",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx ue-mcp hook post-tool-use"
+          }
+        ]
+      }
+    ]
   }
 }
