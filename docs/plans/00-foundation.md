@@ -35,13 +35,17 @@
 - Stub C++ skeleton folders per CONVENTIONS §1 with a placeholder class each so the layout is locked in.
 **Done when:** project compiles; tags appear in editor tag picker; a fresh Claude Code session, given only the repo, correctly answers "where does a new powerup's code and asset go?"
 
-## T0.3 — Editor MCP integration 🔶 AGENT WORK DONE 2026-06-13 — awaiting UA-4…7
+## T0.3 — Editor MCP integration ✅ COMPLETED 2026-06-13
 > Branch `phase/00-foundation`. Both plugins vendored (inner `.git` stripped): UnrealClaude
 > cloned `--recurse-submodules`, nested folder flattened so `Plugins/UnrealClaude/UnrealClaude.uplugin`
 > + `Resources/mcp-bridge/index.js` resolve per `.mcp.json`; VibeUE verified complete. Bridge
 > `npm install` done. `.mcp.json` + `.claude/settings.json` placed at root; VibeUE `@import`
-> added to `CLAUDE.md`; both plugins enabled in `.uproject`. Remaining: human UA-4…7, then the
-> MCP verification checklist + deferred editor items (L_Bootstrap map, IMC_Putt inputs, UA-8).
+> added to `CLAUDE.md`; both plugins enabled in `.uproject`. UA-4…7 done by human; Norton TLS
+> connect break fixed (`NODE_OPTIONS=--use-system-ca`, commit `f3792b9`). MCP-SETUP verification
+> checklist passed end-to-end: `unreal_status` → PuttBattle / UE 5.7.4 / 28 tools; VibeUE
+> subsystem probe → 17 subsystems; spawn → viewport capture (live) → delete round-trip clean.
+> UA-8 signed off by human (permission prompts confirmed). Deferred editor items
+> `L_Bootstrap.umap` + `IMC_Putt`/`IA_*` inputs still pending a later editor pass.
 
 **Goal:** Every future Claude Code session controls the Unreal editor with zero per-session setup.
 **Agent does:** clone both plugins into `Plugins/` (UnrealClaude with `--recurse-submodules`; fix its nested-folder layout per MCP-SETUP §1), `npm install` the bridge, build, vendor (strip inner `.git`, commit), place `.mcp.json` + `.claude/settings.json` at repo root, add the VibeUE rules import line to `CLAUDE.md`, then drive the MCP-SETUP verification checklist.
