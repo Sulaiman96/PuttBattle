@@ -1,5 +1,8 @@
 # PUTT BATTLE — Project Conventions (repo CLAUDE.md)
 
+<!-- Inlines VibeUE's agent rules for the editor MCP tools (MCP-SETUP §6). -->
+@Plugins/VibeUE/Content/samples/AGENTS.md.sample
+
 You are working on **Putt Battle**, a 2–6 player online mini-golf battle game. UE **5.7**, C++ module `PuttBattle`, Steam, listen-server. The design authority is `docs/README.md`. Read the relevant `docs/plans/*.md` for your current task before writing code. Do not refactor outside your task's scope. If a task seems to require violating a rule below, stop and flag it instead of improvising.
 
 ## 1. Tech & layout
