@@ -134,7 +134,7 @@ APBBallPawn::APBBallPawn()
 	SetReplicatingMovement(true);
 
 	CollisionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionSphere"));
-	CollisionSphere->InitSphereRadius(6.f); // ~6 cm, 1uu = 1cm
+	CollisionSphere->InitSphereRadius(BaseRadiusCm); // seed; BeginPlay re-applies the BP value (1uu = 1cm)
 	CollisionSphere->SetCollisionProfileName(TEXT("PB_BallProfile"));
 	CollisionSphere->SetSimulatePhysics(true);
 	CollisionSphere->SetUseCCD(true); // fast balls vs thin walls (D3 ramps)
@@ -142,8 +142,8 @@ APBBallPawn::APBBallPawn()
 	CollisionSphere->SetAngularDamping(AngularDamping);
 	CollisionSphere->SetNotifyRigidBodyCollision(true); // hit events for Anchor/surfaces
 	CollisionSphere->SetGenerateOverlapEvents(true);    // cup / checkpoint / hazard triggers
-	CollisionSphere->BodyInstance.bOverrideMass = true;
-	CollisionSphere->BodyInstance.SetMassOverride(BaseMassKg);
+	// Mass is owned solely by ApplyAttributes() (§3 one-apply-place) — it sets the
+	// scale-dependent override at BeginPlay, so no constructor mass write is needed.
 	RootComponent = CollisionSphere;
 
 	BallMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BallMesh"));
@@ -161,6 +161,10 @@ APBBallPawn::APBBallPawn()
 void APBBallPawn::BeginPlay()
 {
 	Super::BeginPlay();
+	if (CollisionSphere)
+	{
+		CollisionSphere->SetSphereRadius(BaseRadiusCm); // apply the BP-authored size
+	}
 	ApplyPhysicsTuning();
 	ApplyAttributes();
 }
@@ -172,16 +176,19 @@ void APBBallPawn::Tick(float DeltaSeconds)
 	// Re-apply tuning every frame so pb.Ball.* CVar edits take effect live in PIE.
 	ApplyPhysicsTuning();
 
-	// Clamp linear speed so a max-power ramp shot stays believable.
+	// Clamp the PLANAR speed only, so a max-power roll stays believable while a
+	// ramp still launches the ball off the map (D3: vertical motion is terrain-
+	// driven and must not be throttled). GetClampedToMaxSize2D scales X/Y and
+	// leaves Z untouched.
 	if (CollisionSphere && CollisionSphere->IsSimulatingPhysics())
 	{
 		const float MaxSpeedEff = PBBallCVars::CVarMaxSpeed.GetValueOnGameThread() >= 0.f
 			? PBBallCVars::CVarMaxSpeed.GetValueOnGameThread()
 			: MaxSpeed;
 		const FVector V = CollisionSphere->GetPhysicsLinearVelocity();
-		if (MaxSpeedEff > 0.f && V.SizeSquared() > FMath::Square(MaxSpeedEff))
+		if (MaxSpeedEff > 0.f && V.SizeSquared2D() > FMath::Square(MaxSpeedEff))
 		{
-			CollisionSphere->SetPhysicsLinearVelocity(V.GetClampedToMaxSize(MaxSpeedEff));
+			CollisionSphere->SetPhysicsLinearVelocity(V.GetClampedToMaxSize2D(MaxSpeedEff));
 		}
 	}
 }
@@ -210,6 +217,10 @@ void APBBallPawn::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 void APBBallPawn::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+	if (CollisionSphere)
+	{
+		CollisionSphere->SetSphereRadius(BaseRadiusCm); // live editor preview of size
+	}
 	ApplyPhysicsTuning();
 	ApplyAttributes();
 }
@@ -248,8 +259,18 @@ void APBBallPawn::ApplyPhysicsTuning()
 	const float LinEff = PBBallCVars::CVarLinearDamping.GetValueOnGameThread() >= 0.f
 		? PBBallCVars::CVarLinearDamping.GetValueOnGameThread() : LinearDamping;
 
-	CollisionSphere->SetAngularDamping(AngEff);
-	CollisionSphere->SetLinearDamping(LinEff);
+	// Tick calls this every frame for live CVar tuning; only touch the body on a
+	// real change so we don't issue a Chaos write per frame for a static value.
+	if (AngEff != LastAngularDampingApplied)
+	{
+		CollisionSphere->SetAngularDamping(AngEff);
+		LastAngularDampingApplied = AngEff;
+	}
+	if (LinEff != LastLinearDampingApplied)
+	{
+		CollisionSphere->SetLinearDamping(LinEff);
+		LastLinearDampingApplied = LinEff;
+	}
 }
 
 float APBBallPawn::GetEffectiveMaxImpulse() const

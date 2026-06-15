@@ -124,7 +124,7 @@ UPBShotComponent* APBPlayerController::GetShotComponent() const
 bool APBPlayerController::GetCursorScreenPos(FVector2D& OutPos) const
 {
 	float X = 0.f, Y = 0.f;
-	if (const_cast<APBPlayerController*>(this)->GetMousePosition(X, Y))
+	if (GetMousePosition(X, Y)) // const in UE 5.7
 	{
 		OutPos = FVector2D(X, Y);
 		return true;

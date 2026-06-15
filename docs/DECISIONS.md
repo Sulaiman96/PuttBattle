@@ -98,3 +98,55 @@ plugins.
    `GameplayAbilities`, so it can't be removed without breaking the tool. D22 is satisfied a different way:
    `ue-mcp.yml` disables the `gas` tool category (no GAS authoring) and **no game module** uses GAS. GAS is
    enabled-but-unused, editor-tool-only. (`PCG`/`foliage` categories likewise disabled.)
+
+### D-7 — Player camera = 3 third-person follow presets (1/2/3), superseding D4's fixed rigs   (2026-06-13)
+**Context:** Reviewing the graybox, the human (design authority) directed the player camera to be **three
+ball-following third-person presets** — zoomed-in, mid (diagonal between top-down and third-person), and
+top-down-angle — switched with **1/2/3**. This diverges from README **D4** ("Top-down/isometric; 2–4 fixed
+rigs per hole variant, player cycles") and the C++ `PBCameraSubsystem`/`PBCameraRig` built for it (cycled
+with C).
+**Decision:** Implement the player camera as a `SpringArmComponent` + `CameraComponent` on `BP_BallPawn`
+(boom uses **absolute rotation** so the rolling ball's spin doesn't tumble the view; arm 650). Three presets
+switched by `IA_Camera1/2/3` (keys 1/2/3) handled in the pawn's event graph, each setting boom pitch + camera
+FOV: P1 −28°/50, P2 (default) −45°/75, P3 −72°/88. Removed the three fixed `PBCameraRig` actors from
+`H_Test/V_A` and the `C` cycle mapping from `IMC_Putt`. Kept the C++ `PBCameraRig`/`PBCameraSubsystem` classes
+in the codebase (currently unused).
+**Why:** A feel/visual call the human owns (CONVENTIONS §12). A spring-arm follow rig is the idiomatic
+third-person approach and keeps framing values feel-tunable without recompiling (§1: camera is client
+presentation, §2). Zoom is done via **FOV** (not runtime arm-length) because setting `TargetArmLength` at
+runtime isn't reachable through the BP-authoring path available via ue-mcp; acceptable for graybox, can move
+to C++ arm-length presets later if true dolly-zoom is wanted.
+**Open / to reconcile (flagged for the human):**
+- **README D4** should be updated to reflect the new player-camera model (left to the human as design-doc
+  owner).
+- The **hole-intro "camera glance" (D20)** and the **spectator system's "cycle that hole's camera rigs"**
+  (Phase 8) both assumed fixed rigs. Revisit when those phases land — either keep per-hole rigs for those
+  purposes alongside the player follow-cam, or redesign them around the follow-cam.
+**Touches:** `Content/Ball/BP_BallPawn` (camera components + 1/2/3 graph), `Content/Input/IMC_Putt`
+(+`IA_Camera1/2/3`, −`C`), `Content/Maps/Holes/H_Test/V_A` (rigs removed), `docs/plans/01-ball-and-shot.md`,
+`docs/pr/phase-01-ball-and-shot.md`.
+
+### D-8 — Default maps repointed to V_A + project-wide default GameMode (review fix)   (2026-06-15)
+**Context:** A review of `phase/01-02-ball-shot-surfaces` found `EditorStartupMap`/`GameDefaultMap`/
+`ServerDefaultMap` all pointing at `/Game/Maps/Core/L_Bootstrap`, which was never created (a still-open
+Phase-0 deferral) — so the editor opened to an empty world and any non-PIE launch had no valid startup map.
+Separately, `BP_PBGameMode` was set only as `V_A`'s per-map World Settings override, with no
+`GlobalDefaultGameMode`; any map missing that override would run the engine default `AGameMode`, making
+`APBGameMode::RespawnAtCheckpoint` (reached from `FellOutOfWorld`/hazards) silently no-op — the D7
+water/void/KillZ reset would fail and the ball would be destroyed instead.
+**Decision:** Point the three `GameMapsSettings` map keys at the only playable map
+(`/Game/Maps/Holes/H_Test/V_A.V_A`) and set `GlobalDefaultGameMode=/Game/Match/BP_PBGameMode.BP_PBGameMode_C`.
+**Why:** Smallest change that makes the project open into a valid world and makes the D7 contract hold on
+every map (a per-map override still wins where present). Creating the real `L_Bootstrap`/front-end map stays
+a Phase-0/3 deferral; revert the map keys to it once it ships.
+**Touches:** `Config/DefaultEngine.ini`.
+
+### D-9 — Surface override stack rooted via USTRUCT (review fix)   (2026-06-15)
+**Context:** `UPBSurfaceSubsystem` held pushed overrides in a bare `TArray<FOverrideEntry>` whose
+`TObjectPtr<UPBSurfaceDefinition>` was invisible to GC (a plain struct field is not a reflected reference),
+so the definition governing an active Ice Age override could be collected mid-effect — the exact future
+caller (Phase 6) the stack exists for.
+**Decision:** Promote `FOverrideEntry` to a `USTRUCT` (`FPBSurfaceOverride`) with a `UPROPERTY()` Definition
+and mark the array `UPROPERTY(Transient)`, matching the cup/GameMode container pattern.
+**Why:** Makes the held definitions GC-reachable while they govern play; behaviour-neutral today.
+**Touches:** `Surfaces/PBSurfaceSubsystem.{h,cpp}`.

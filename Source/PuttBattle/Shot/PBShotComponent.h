@@ -103,9 +103,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Shot|Feel", meta = (ClampMin = "0.0"))
 	float RollTimeout = 12.f;
 
-protected:
-	virtual void BeginPlay() override;
+	/** Aim-preview length (cm) at full power — the visual the player calibrates against. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Shot|Feel", meta = (ClampMin = "0.0"))
+	float PreviewLengthAtFullPower = 600.f;
 
+	/** Shortest visible aim-preview length (cm) so a tiny tap still shows a line. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Shot|Feel", meta = (ClampMin = "0.0"))
+	float PreviewMinLength = 50.f;
+
+protected:
 	/** BP preview hook (Niagara / spline mesh). Start→End along aim, length ∝ power. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "PB|Shot")
 	void OnUpdateAimPreview(const FVector& Start, const FVector& End, float Power01);

@@ -11,7 +11,7 @@ APBCupActor::APBCupActor()
 	PrimaryActorTick.bCanEverTick = true;
 
 	CatchZone = CreateDefaultSubobject<USphereComponent>(TEXT("CatchZone"));
-	CatchZone->InitSphereRadius(12.f);
+	CatchZone->InitSphereRadius(CatchRadius); // seed; BeginPlay re-applies the authored value
 	CatchZone->SetCollisionProfileName(TEXT("Trigger")); // QueryOnly, overlaps the ball
 	CatchZone->SetGenerateOverlapEvents(true);
 	RootComponent = CatchZone;
@@ -21,11 +21,23 @@ APBCupActor::APBCupActor()
 	CupMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision); // visual only
 }
 
+void APBCupActor::BeginPlay()
+{
+	Super::BeginPlay();
+	if (CatchZone)
+	{
+		CatchZone->SetSphereRadius(CatchRadius);
+	}
+}
+
 void APBCupActor::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	if (!CatchZone)
+	// Sinking is gameplay truth (ends the hole / scores) → authority only
+	// (CONVENTIONS §2). Standalone is authority, so behaviour is unchanged now; in
+	// Phase 3 this stops every client independently sinking the replicated ball.
+	if (!CatchZone || !HasAuthority())
 	{
 		return;
 	}

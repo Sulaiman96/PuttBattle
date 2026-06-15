@@ -3,10 +3,31 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/TimerHandle.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "PBSurfaceSubsystem.generated.h"
 
 class UPBSurfaceDefinition;
+
+/**
+ * One pushed global surface override. A USTRUCT with a UPROPERTY Definition so the
+ * referenced data asset is GC-reachable while it governs play — a bare TObjectPtr
+ * in a plain struct is invisible to the collector and could be reclaimed mid-Ice-Age.
+ */
+USTRUCT()
+struct FPBSurfaceOverride
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	int32 Id = 0;
+
+	UPROPERTY()
+	TObjectPtr<UPBSurfaceDefinition> Definition = nullptr;
+
+	/** Auto-expiry handle (not reflected; lifetime tracked by the timer manager). */
+	FTimerHandle ExpiryTimer;
+};
 
 /**
  * Whole-map surface override stack (CONVENTIONS / plans/02 T2.1). The Ice Age
@@ -44,13 +65,9 @@ public:
 	UPBSurfaceDefinition* ResolveActiveDefinition(UPBSurfaceDefinition* ContactDefinition) const;
 
 private:
-	struct FOverrideEntry
-	{
-		int32 Id = 0;
-		TObjectPtr<UPBSurfaceDefinition> Definition = nullptr;
-		FTimerHandle ExpiryTimer;
-	};
+	/** Active overrides, top wins. UPROPERTY so the held definitions stay GC-rooted. */
+	UPROPERTY(Transient)
+	TArray<FPBSurfaceOverride> Overrides;
 
-	TArray<FOverrideEntry> Overrides;
 	int32 NextOverrideId = 1;
 };

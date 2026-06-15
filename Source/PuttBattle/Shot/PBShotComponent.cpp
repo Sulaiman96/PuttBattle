@@ -9,6 +9,7 @@
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "GameFramework/PlayerController.h"
+#include "PBCollisionChannels.h"
 
 namespace PBShotCVars
 {
@@ -42,11 +43,6 @@ UPBShotComponent::UPBShotComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	SetIsReplicatedByDefault(false); // shot input is local; Phase 3 adds the server RPC path
-}
-
-void UPBShotComponent::BeginPlay()
-{
-	Super::BeginPlay();
 }
 
 APBBallPawn* UPBShotComponent::GetBall() const
@@ -217,14 +213,19 @@ void UPBShotComponent::RecomputeAim()
 	CachedRequest.Dir = FVector2D(AimDir.X, AimDir.Y);
 	CachedRequest.Power01 = Power;
 
-	// Preview endpoint: trace from the ball along the aim dir to the first wall.
+	// Preview endpoint: trace from the ball along the aim dir, clipped at the first
+	// wall/floor it would hit. Trace by the PB object channels (not ECC_Visibility,
+	// which the §4 collision contract makes no promise about) — mirrors the sampler.
 	const FVector Start = Ball->GetActorLocation();
-	const float PreviewLen = FMath::Max(50.f, Power * 600.f); // length encodes power
+	const float PreviewLen = FMath::Max(PreviewMinLength, Power * PreviewLengthAtFullPower); // length encodes power
 	FVector End = Start + AimDir * PreviewLen;
 
 	FHitResult Hit;
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(PBAimPreview), false, Ball);
-	if (GetWorld() && GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+	FCollisionObjectQueryParams ObjParams;
+	ObjParams.AddObjectTypesToQuery(PBCollision::Wall);
+	ObjParams.AddObjectTypesToQuery(PBCollision::Floor);
+	if (GetWorld() && GetWorld()->LineTraceSingleByObjectType(Hit, Start, End, ObjParams, Params))
 	{
 		End = Hit.ImpactPoint;
 	}
@@ -270,10 +271,15 @@ void UPBShotComponent::ExecuteShot(const FPBShotRequest& Request)
 		return;
 	}
 
+	// This funnel becomes the Server_ExecuteShot body verbatim in Phase 3, so it
+	// validates its own input (CONVENTIONS §2): clamp the client-supplied power to
+	// [0,1] here, not just upstream in RecomputeAim. No-op offline.
+	const float SafePower = FMath::Clamp(Request.Power01, 0.f, 1.f);
+
 	// Flat impulse only (D3). Mass matters (bVelChange=false) so a Ballooned,
 	// heavier ball travels less from the same shot.
 	const FVector Dir3D(Request.Dir.X, Request.Dir.Y, 0.f);
-	const float Magnitude = Request.Power01
+	const float Magnitude = SafePower
 		* Ball->GetEffectiveMaxImpulse()
 		* FMath::Max(Ball->Attributes.PowerMultiplier, 0.f);
 

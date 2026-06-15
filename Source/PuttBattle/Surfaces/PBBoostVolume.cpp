@@ -12,7 +12,7 @@ APBBoostVolume::APBBoostVolume()
 	PrimaryActorTick.bCanEverTick = true;
 
 	BoostZone = CreateDefaultSubobject<UBoxComponent>(TEXT("BoostZone"));
-	BoostZone->InitBoxExtent(FVector(50.f, 50.f, 20.f));
+	BoostZone->InitBoxExtent(ZoneExtent); // seed; BeginPlay re-applies the authored value
 	BoostZone->SetCollisionProfileName(TEXT("Trigger"));
 	BoostZone->SetGenerateOverlapEvents(true);
 	RootComponent = BoostZone;
@@ -26,6 +26,7 @@ APBBoostVolume::APBBoostVolume()
 void APBBoostVolume::BeginPlay()
 {
 	Super::BeginPlay();
+	BoostZone->SetBoxExtent(ZoneExtent);
 	BoostZone->OnComponentBeginOverlap.AddDynamic(this, &APBBoostVolume::OnBeginOverlap);
 	BoostZone->OnComponentEndOverlap.AddDynamic(this, &APBBoostVolume::OnEndOverlap);
 }
@@ -66,6 +67,26 @@ void APBBoostVolume::Tick(float DeltaSeconds)
 			It.RemoveCurrent();
 			continue;
 		}
+
+		// Altering a ball's trajectory is a physics outcome — authority only in
+		// Phase 3 (CONVENTIONS §2). No-op in standalone (authority is local); the
+		// guard keeps a client from fighting the replicated server position later.
+		if (!Ball->HasAuthority())
+		{
+			continue;
+		}
+
+		// Self-bounding: stop pushing once the ball is already at the cap along the
+		// boost axis, so the pad doesn't accumulate speed without limit.
+		if (MaxBoostSpeed > 0.f)
+		{
+			const float AlongAxis = FVector::DotProduct(Ball->CollisionSphere->GetPhysicsLinearVelocity(), BoostDir);
+			if (AlongAxis >= MaxBoostSpeed)
+			{
+				continue;
+			}
+		}
+
 		Ball->CollisionSphere->AddForce(BoostDir * BoostAcceleration, NAME_None, /*bAccelChange=*/true);
 	}
 }

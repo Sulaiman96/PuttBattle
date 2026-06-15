@@ -56,6 +56,15 @@ public:
 
 	// --- Feel constants (BP-tunable; mirrored by pb.Ball.* CVars) ----------
 
+	/**
+	 * Collision sphere radius in cm at ScaleMultiplier 1 — the ball's physical
+	 * size, core feel (roll character, what gaps it fits, cup-fit margin). Applied
+	 * at BeginPlay + on editor edit, not per-frame (SetSphereRadius rebuilds bounds
+	 * and is expensive). Change it on BP_BallPawn; no live CVar by design.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Ball|Feel", meta = (ClampMin = "0.1"))
+	float BaseRadiusCm = 6.f;
+
 	/** Base mass in kg at ScaleMultiplier 1. Mass scales with volume (∝ scale³). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Ball|Feel", meta = (ClampMin = "0.01"))
 	float BaseMassKg = 0.045f;
@@ -119,4 +128,8 @@ protected:
 private:
 	/** Push the effective (CVar-overridden) damping onto the body instance. */
 	void ApplyPhysicsTuning();
+
+	/** Last damping values written to the body, so Tick only re-pushes on change. */
+	float LastLinearDampingApplied = -1.f;
+	float LastAngularDampingApplied = -1.f;
 };

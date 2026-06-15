@@ -56,6 +56,15 @@ private:
 	UFUNCTION()
 	void HandleBallSunk(APBBallPawn* Ball);
 
+	/** Re-bind when the controller possesses a (new) pawn — covers HUD-before-pawn
+	 *  and respawn re-possession (Phase 3). */
+	UFUNCTION()
+	void HandlePossessedPawnChanged(APawn* OldPawn, APawn* NewPawn);
+
+	/** (Re)bind the shot delegates to the locally-controlled ball, if any. */
+	void BindToBall();
+	void UnbindFromBall();
+
 	APBBallPawn* GetLocalBall() const;
 
 	UPROPERTY(Transient)
