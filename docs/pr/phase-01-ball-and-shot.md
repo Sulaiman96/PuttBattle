@@ -1,7 +1,7 @@
 # PR: Phase 1 — Ball & Shot (offline)
 
-**Branch:** `phase/01-02-ball-shot-surfaces` · **Date:** 2026-06-13 · **Status:** C++ complete &
-compiling (game target links clean). Editor content pass + UA-9 feel sign-off remain.
+**Branch:** `phase/01-02-ball-shot-surfaces` · **Date:** 2026-06-13 · **Status:** C++ complete & compiling;
+**editor content pass complete (2026-06-13)** and verified in PIE. Only **UA-9 feel sign-off** remains.
 
 ## What this delivers
 The full offline ball-and-shot system from `docs/plans/01-ball-and-shot.md`, in C++. Structs and the
@@ -53,13 +53,48 @@ replication now, but everything runs single-player.
   Niagara/spline preview is wired.
 - Stroke count lives on the shot component for Phase 1; it moves to `PlayerState` in Phase 3/4.
 
-## Requires editor (after the game module is rebuilt + the editor restarted)
-These need the new classes registered in the editor, so they're the next pass (MCP-drivable):
-1. **Input assets:** `IMC_Putt` + `IA_DragShot` (LMB), `IA_CycleCamera` (C), `IA_CancelTargeting`
-   (RMB/Esc) — also clears the Phase 0 deferral.
-2. **BP subclasses:** `BP_BallPawn` (sphere mesh + `UCurveFloat` power curve + tuned feel),
-   `BP_PBPlayerController` (wire the input assets), `BP_PBGameMode` (use them); set DefaultPawn/PC.
-3. **Graybox map** `Maps/Holes/H_Test/V_A` with ramps (verify D3: a max-power ramp shot leaves the map),
-   a tee, a cup, and 3 camera rigs; floors/walls on `PB_Floor`/`PB_Wall` (CONVENTIONS §4).
-4. **`WBP_HUD`** (subclass `UPBHUDWidget`): stroke counter, power bar, "SUNK!" toast, restart key.
-5. **UA-9 feel sign-off** — gates phase exit (`docs/USER-ACTIONS.md`).
+## Content pass (2026-06-13, via ue-mcp)
+All editor-side work is done and committed to `Content/`:
+1. **Input assets** (`/Game/Input/`): `IMC_Putt` mapping context + `IA_DragShot` (LMB), `IA_CycleCamera`
+   (C), `IA_CancelTargeting` (RMB + Esc), `IA_Restart` (R). All Boolean actions; mappings verified via
+   `read_imc` (5 mappings, default press→Started / release→Completed matches the C++ bindings).
+2. **BP subclasses:**
+   - `BP_BallPawn` (`/Game/Ball/`): cosmetic `BallMesh` = engine Sphere at scale 0.12 (→ 6 cm radius to
+     match the C++ collision sphere), white `M_Ball`, `SurfaceSampler.FallbackDefinition` = `DA_Surface_Fairway`.
+     `ShotComponent.PowerCurve` left **null** = linear identity (playable); the curve *shape* is a UA-9
+     feel artifact (see Known issues).
+   - `BP_PBPlayerController` (`/Game/Match/`): the four input UPROPERTYs assigned; `BeginPlay` graph creates
+     `WBP_HUD` (OwningPlayer = self) and adds it to the viewport; `IA_Restart` → GetGameMode → Cast
+     `PBGameMode` → `RestartHole(self)`.
+   - `BP_PBGameMode` (`/Game/Match/`): `DefaultPawnClass` = `BP_BallPawn`, `PlayerControllerClass` =
+     `BP_PBPlayerController`. Set as the map's GameMode override.
+3. **Graybox map** `/Game/Maps/Holes/H_Test/V_A`: a flat fairway lane (tee → cup) flanked by walls, an
+   incline ramp on the open far end (D3 off-map launch), a back wall, directional + sky + atmosphere
+   lighting, `KillZ = -500`. Floors/ramp on object channel `PB_Floor`, walls on `PB_Wall` (CONVENTIONS §4)
+   — see the collision gotcha below.
+
+   **Camera (revised — DECISIONS D-7):** the player camera is now **3 third-person follow presets** on a
+   spring arm on `BP_BallPawn` (boom absolute-rotation so the rolling ball's spin doesn't tumble it),
+   switched with **1/2/3**: P1 zoomed-in (pitch −28°, FOV 50), P2 mid/default (−45°, FOV 75), P3 top-down
+   angle (−72°, FOV 88). This supersedes the original 3 fixed `PBCameraRig`s (D4) for the player — the
+   rigs were removed from the map and `C` cycling retired; the C++ rig system remains unused. PIE-verified:
+   the active view matches each preset's spring-arm math exactly.
+4. **`WBP_HUD`** (`/Game/UI/`, parent `UPBHUDWidget`): `StrokeText` ("Strokes: {Count}" via Format Text on
+   `OnStrokesChanged`), `PowerBar` (ProgressBar, anchored bottom-centre, shown/hidden + filled on
+   `OnAimPower`, collapsed on `OnAimEnded`), `SunkText` ("SUNK!" centre, shown on `OnLocalBallSunk`).
+   Compiles clean.
+
+### Verification evidence (PIE)
+- `BP_PBGameMode` spawns `BP_BallPawn` at the tee; ball **rests at z≈6** (= radius) on the fairway —
+  collision + rest confirmed (`get_pie_pawn`, `GetPlanarSpeed` = 0).
+- `WBP_HUD` is on the viewport with `StrokeText` = "Strokes: 0" (`widget list_runtime` / `get_runtime`).
+- Surface sampler resolves `Surface.Fairway` under the resting ball and `Surface.Ice` when teleported over
+  the ice band (collision contract working end-to-end — see phase-02 PR).
+- Cup→HUD: the cup's `OnBallSunk` delegate has the HUD bound (confirmed), and the `OnLocalBallSunk →
+  SetVisibility(SunkText, Visible)` graph is wired and compiles. Visual confirmation of the toast on a real
+  sunk putt is part of UA-9 (the live drag-shot loop needs human input that MCP can't inject).
+
+## Remaining (human)
+- **UA-9 feel sign-off** — gates phase exit (`docs/USER-ACTIONS.md`). The `pb.Ball.*` / `pb.Shot.*` CVars are
+  live for tuning; the **power-curve shape** and **camera framing/FOV + lighting exposure** are feel/visual
+  judgments to settle during this pass (the graybox lighting is currently bright/un-tuned).
