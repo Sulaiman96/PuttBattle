@@ -176,6 +176,16 @@ World Settings `DefaultGameMode`. The shot-gating code is also written to stay p
 without an editor round-trip (the bridge was down this session). No `GlobalDefaultGameMode`/World-Settings edits.
 **Touches:** `Net/PBSessionSubsystem.*`, `Match/PBLobbyGameMode.*`, `Shot/PBShotComponent.cpp` (permissive offline gating).
 
+**Update (2026-06-17, editor pass):** Refined the split once the lobby content existed. The **lobby** hop no
+longer forces `?game=` — `L_Lobby`'s own World Settings GameMode is `BP_PBLobbyGameMode` (which carries the
+lobby HUD), so host + joining clients share one lobby mode/HUD reliably (a runtime `?game=` to a BP path was
+fragile to set from BP, and a World-Settings GameMode is saved-in-map and dependable). The **match** hop
+(`APBLobbyGameMode::RequestStartMatch`) still forces `?game=/Script/PuttBattle.PBMatchGameMode` — that's the
+part that keeps the shared graybox map `V_A` on its offline referee for feel-testing. `GameDefaultMap` was
+repointed from `V_A` (the D-8 stopgap) to `L_Lobby` so launches land on the front-end menu; `V_A`'s own World
+Settings stay on `BP_PBGameMode`. The now-unused `UPBSessionSubsystem::LobbyGameModeURL` is left in place
+(harmless) pending a tidy-up build.
+
 ### D-12 — Ball replication cadence is a net-rate throttle, not true net dormancy   (2026-06-17)
 **Context:** plans/03 T3.1 asks for "30 Hz while moving, 5 Hz at rest via dormancy-ish toggling". The 5.7
 research flagged that `SetNetDormancy(DORM_DormantAll)` on an actively physics-replicated body can freeze a

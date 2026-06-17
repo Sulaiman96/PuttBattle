@@ -1,8 +1,8 @@
 # PR: Phase 3 — Multiplayer Core (C++)
 
 **Branch:** `phase/03-multiplayer-core` · **Date:** 2026-06-17 · **Status:** C++ complete & compiling
-(editor target, **zero new warnings**); both automation tests pass. Editor-side content (lobby map + UMG)
-and the human network tests (UA-11/12/13) remain — see **Requires editor** and **Remaining (human)**.
+(editor target, **zero new warnings**); both automation tests pass. **Lobby map + functional UI built and
+PIE-smoke-tested (2026-06-17).** Only the human network tests (UA-11/12/13) remain — see **Remaining (human)**.
 
 Implements `docs/plans/03-multiplayer-core.md`: server-authoritative shots, smooth replicated balls, the
 match phase machine, checkpoints/completion under replication, and the Steam session + lobby layer. Built
@@ -93,25 +93,33 @@ the C++ is the full, testable backbone.
   streaming is Phase 7.
 - **Net dormancy:** intentionally a rate-throttle, not true dormancy (D-12).
 
-## Requires editor (bridge was down — do these in the open editor; restart it first to load the 6 new C++ classes)
-1. **Create the lobby map** `/Game/Maps/Core/L_Lobby` (graybox is fine — players are UI-only in the lobby).
-2. **Front-end + lobby UMG** wired to the C++ backbone:
-   - Main-menu actions → `UPBSessionSubsystem`: `CreateRoom(maxPlayers, name)`, `FindRooms()` →
-     `OnFindRoomsComplete` → list via `GetNumFoundRooms/GetRoomName/GetRoomOpenSlots` → `JoinRoomByIndex(i)`.
-   - Lobby panel → seats from `APBLobbyGameState` (`GetNumPlayers`, iterate PlayerArray for ready ticks),
-     ready button → `APBPlayerController::Server_SetReady`, **host-only** settings sliders →
-     `Server_SetMatchSettings`, start button → `Server_RequestStartMatch`.
-   - Bind `UPBSessionSubsystem::OnCreateRoomComplete/OnJoinRoomComplete/OnHostLeft` for status/error toasts.
-3. **(Optional) Transition map** for seamless travel — set `[/Script/EngineSettings.GameMapsSettings]
-   TransitionMap=...` in `DefaultEngine.ini` and create a light `L_Transition`. Leaving it empty uses the
-   engine's default empty level (works; a real one just gives a nicer loading hop).
-4. **(Optional) BP graybox hooks:** implement `OnLocalShotFired` (swing FX) on the ball BP/shot, and
-   `OnEnterSpectate`/`OnExitSpectate` (placeholder fixed cam) + `OnFinishedChanged` on `APBPlayerController` /
-   a phase HUD. Not required for the C++ to function.
-5. **Direct phase-loop PIE test** (if testing without the lobby UI): launch the match map with
-   `?game=/Script/PuttBattle.PBMatchGameMode` (or temporarily set a test map's World Settings to it) so the
-   phase machine runs; do **not** change `V_A`'s World Settings (keep it on the offline referee).
-6. Commit the new `Content/` assets (LFS) once created.
+## Editor content built this session (2026-06-17, via ue-mcp)
+- **`/Game/Maps/Core/L_Lobby`** — graybox lobby map (floor, sun + skylight, PlayerStart). World Settings
+  GameMode = `BP_PBLobbyGameMode`. `GameDefaultMap` repointed here (was V_A — the D-8 stopgap), so a
+  standalone/packaged launch lands on the lobby menu. V_A's own World Settings are **unchanged** (still the
+  offline referee for feel-testing).
+- **`/Game/UI/WBP_Lobby`** — functional graybox lobby widget: **Host Game** → `UPBSessionSubsystem::CreateRoom(6,"PB Room")`;
+  **Find & Join** → `FindRooms(50)` → 1 s delay → `JoinRoomByIndex(0)` (joins the first room — enough for the
+  two-instance test; a full server-browser list is the polish follow-up); **Ready Up** → `Server_SetReady(true)`;
+  **Start Match** → `Server_RequestStartMatch`. Compiles clean (0 errors/0 warnings).
+- **`/Game/Match/BP_PBLobbyHUD`** — `BeginPlay → CreateWidget(WBP_Lobby) → AddToViewport`. The lobby PC
+  (`APBPlayerController`) already enables cursor + GameAndUI input (Phase 1), so the buttons are clickable.
+- **`/Game/Match/BP_PBLobbyGameMode`** — `APBLobbyGameMode` subclass carrying `HUDClass = BP_PBLobbyHUD`.
+- **C++ tweak (Live-Coding-compiled):** the lobby `ServerTravel` no longer forces `?game=` — the lobby mode
+  now comes from L_Lobby's World Settings (so host + joining clients share the same lobby mode + HUD). The
+  *match* hop still forces `?game=/Script/PuttBattle.PBMatchGameMode` (keeps V_A on its offline referee). See D-11.
+- **PIE smoke test:** standalone PIE on L_Lobby → `WBP_Lobby` confirmed `inViewport`/visible; no stray pawn
+  (lobby is UI-only). The host/join/ready/start *Steam* paths still need UA-12 (Steam + two instances) to validate.
+
+## Still deferred (optional / not blocking)
+- **Server-browser list** (one row per found room) — current UI joins the first room found, which covers the
+  two-instance test; a scrollable list is a polish pass.
+- **Transition map** for seamless travel — `[/Script/EngineSettings.GameMapsSettings] TransitionMap=` is unset,
+  so the engine uses its default empty level (works; a dedicated `L_Transition` just gives a nicer hop).
+- **BP graybox seam hooks** — `OnLocalShotFired` (swing FX), `OnEnterSpectate`/`OnExitSpectate` (placeholder
+  cam), `OnFinishedChanged`. The C++ seams fire; these BP implementations are cosmetic and can wait for art (Phase 10).
+- **Mid-hole late-registrant** early-end edge (review finding #8) — mitigated by `bAllowJoinInProgress=false`
+  and the map-time fallback; full DNF handling lands with Phase 4.
 
 ## Remaining (human)
 - **UA-11** Steam client running on the dev machine (dev AppId 480).

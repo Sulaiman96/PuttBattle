@@ -160,13 +160,16 @@ void UPBSessionSubsystem::HandleCreateComplete(FName SessionName, bool bWasSucce
 	OnCreateRoomComplete.Broadcast(bWasSuccessful);
 
 	// Host opens the lobby map as a listen server; the session now advertises it.
-	// The ?game= option forces APBLobbyGameMode regardless of the map's World
-	// Settings (confirmed precedence: a URL ?game= overrides the map default).
+	// The lobby GameMode comes from L_Lobby's own World Settings (set to a
+	// PBLobbyGameMode that shows the lobby UI), so we do NOT force ?game= here —
+	// that keeps the host and joining clients on the same lobby mode + HUD. (The
+	// match hop still forces ?game= in APBLobbyGameMode::RequestStartMatch, which is
+	// what keeps the offline feel-test map V_A on its own referee.)
 	if (bWasSuccessful)
 	{
 		if (UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr)
 		{
-			World->ServerTravel(FString::Printf(TEXT("%s?game=%s?listen"), *LobbyMapURL, *LobbyGameModeURL));
+			World->ServerTravel(LobbyMapURL + TEXT("?listen"));
 		}
 	}
 }

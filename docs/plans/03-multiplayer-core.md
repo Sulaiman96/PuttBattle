@@ -3,9 +3,9 @@
 **Context:** Phases 0–2 complete offline. This phase makes it a game: authority, sessions, lobby. **First playtest happens at the end of this phase** — graybox, friends, real Steam.
 
 > **Status (2026-06-17):** All four tasks' **C++ complete, compiling clean, unit-tested, and adversarially
-> reviewed** (`docs/pr/phase-03-multiplayer-core.md`). The editor bridge was down, so lobby map + UMG content
-> and the PIE/Steam *Done-when* runs are deferred to the PR doc's **Requires editor** / human (UA-11/12/13)
-> sections. Deviations recorded in DECISIONS D-10…D-13.
+> reviewed**; the **lobby content (L_Lobby map + WBP_Lobby UI + HUD/GameMode) is built and PIE-smoke-tested**
+> (`docs/pr/phase-03-multiplayer-core.md`). Remaining is the human network validation: UA-11 (Steam client),
+> UA-12 (two-instance Steam match), UA-13 (friends playtest). Deviations recorded in DECISIONS D-10…D-13.
 
 ## T3.1 — Authority & replication pass — **C++ done 2026-06-17** (PIE 3-client net-emulation run = human, UA-shaped)
 **Goal:** Server-authoritative shots and smooth replicated balls.
@@ -24,7 +24,7 @@
 **Modify:** CheckpointActor activation server-tracked per PlayerState; activation FX only on the owning client (RepNotify filtering). Cup sink: server-detected, marks PlayerState finished, records sink order + timestamp. Finished players get a placeholder fixed camera (real spectate is Phase 8 — keep the seam: route through `EnterSpectate()` stub).
 **Done when:** two players verifiably respawn to *different* checkpoints; sink order is correct under latency (server timestamps, not client).
 
-## T3.4 — Steam sessions & lobby — **C++ done 2026-06-17** (session subsystem + lobby GM/GS; lobby map + UMG = editor; UA-12 = human)
+## T3.4 — Steam sessions & lobby — **C++ + editor content done 2026-06-17** (session subsystem + lobby GM/GS; L_Lobby map + WBP_Lobby UI + HUD built & PIE-smoke-tested; UA-12 two-instance Steam = human)
 **Goal:** Create/browse/join over real Steam.
 **Create:** `Net/PBSessionSubsystem` (GameInstance subsystem wrapping OSS: CreateSession w/ lobby metadata, FindSessions, JoinSession, friend invites/`join game` support, destroy/cleanup paths), `Maps/Core/L_Lobby` + lobby GameMode/State: seats (2–6), ready-up, host-only settings panel writing replicated `FPBMatchSettings { HoleCount(3–9), MapTimeSeconds, FirstFinishClampSeconds, TArray<FPBPowerupWeight> (wired in Phase 5) }`. Start → seamless travel into match flow.
 - Robustness: handle join-in-lobby only (no join-in-progress in v1 — reject with reason), host-quit → all clients return to MainMenu with "Host left" message.
