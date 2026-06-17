@@ -8,7 +8,10 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
+#include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
+#include "Match/PBMatchGameState.h"
+#include "Match/PBPlayerState.h"
 #include "PBCollisionChannels.h"
 
 namespace PBShotCVars
@@ -42,7 +45,7 @@ namespace PBShotCVars
 UPBShotComponent::UPBShotComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
-	SetIsReplicatedByDefault(false); // shot input is local; Phase 3 adds the server RPC path
+	SetIsReplicatedByDefault(true); // needed so the owning client can route Server_RequestShot
 }
 
 APBBallPawn* UPBShotComponent::GetBall() const
@@ -84,9 +87,28 @@ void UPBShotComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	if (ShotState == EPBShotState::Rolling)
 	{
 		RollTimer += DeltaTime;
+
+		// Hold the Rolling lock until the ball is actually seen to move (covers the
+		// RTT to the server, and a shot the server rejected / a zero-power no-op).
+		// Until then we don't let at-rest detection flip us back to Idle, which would
+		// otherwise allow a remote client to fire a second shot before the first lands.
+		if (bWaitingForShotMotion)
+		{
+			if (Ball->GetSpeed() > RestSpeedEff)
+			{
+				bWaitingForShotMotion = false; // motion confirmed; resume normal detection
+			}
+			else if (ShotConfirmTimeout > 0.f && RollTimer >= ShotConfirmTimeout)
+			{
+				SetShotState(EPBShotState::Idle); // shot never moved the ball — release the lock
+			}
+			return;
+		}
+
 		const bool bAtRest = AtRestTimer >= AtRestDuration;
 		const bool bTimedOut = RollTimeoutEff > 0.f && RollTimer >= RollTimeoutEff;
-		if (bTimedOut)
+		// Force-stop is a physics mutation → authority only; clients get it via rep.
+		if (bTimedOut && Ball->HasAuthority())
 		{
 			Ball->StopMotion();
 		}
@@ -111,6 +133,25 @@ bool UPBShotComponent::CanAim() const
 	if (Ball->Attributes.bShotLocked)
 	{
 		return false; // Lock powerup refuses the shot (CONVENTIONS §3)
+	}
+	// In a match, only aim during shot-allowed phases; offline (no match GameState)
+	// stays permissive so the graybox feel-test map still works.
+	if (const UWorld* World = GetWorld())
+	{
+		if (const APBMatchGameState* GS = World->GetGameState<APBMatchGameState>())
+		{
+			if (!GS->ArePlayerShotsAllowed())
+			{
+				return false;
+			}
+		}
+	}
+	if (const APBPlayerState* PS = Ball->GetPlayerState<APBPlayerState>())
+	{
+		if (PS->IsFinished())
+		{
+			return false; // finished players spectate (D13) — no more shots this hole
+		}
 	}
 	return AtRestTimer >= AtRestDuration;
 }
@@ -155,9 +196,26 @@ void UPBShotComponent::ReleaseAim()
 		return;
 	}
 
-	ExecuteShot(CachedRequest);
+	// Owning-client cosmetic feedback the instant the player releases, before the
+	// server round-trip (T3.1 local-feel). The authoritative impulse is server-side.
+	OnLocalShotFired(CachedRequest.Power01);
+
+	// Route to the server. The listen-server host is authority and runs the server
+	// path directly; a remote client sends the validated RPC.
+	if (APBBallPawn* Ball = GetBall(); Ball && Ball->HasAuthority())
+	{
+		TryExecuteServerShot(CachedRequest);
+	}
+	else
+	{
+		Server_RequestShot(CachedRequest);
+	}
+
+	// Enter the local rolling lock; held until the ball is observed to move so a
+	// queued shot can't be double-fired (see TickComponent).
 	RollTimer = 0.f;
 	AtRestTimer = 0.f;
+	bWaitingForShotMotion = true;
 	SetShotState(EPBShotState::Rolling);
 	OnHideAimPreview();
 	OnAimEnded.Broadcast();
@@ -271,9 +329,9 @@ void UPBShotComponent::ExecuteShot(const FPBShotRequest& Request)
 		return;
 	}
 
-	// This funnel becomes the Server_ExecuteShot body verbatim in Phase 3, so it
-	// validates its own input (CONVENTIONS §2): clamp the client-supplied power to
-	// [0,1] here, not just upstream in RecomputeAim. No-op offline.
+	// Server-side funnel (called from TryExecuteServerShot). Defends its own input
+	// (CONVENTIONS §2): clamp the client-supplied power to [0,1] here, not just
+	// upstream in RecomputeAim, so a forged RPC payload can't over-power a shot.
 	const float SafePower = FMath::Clamp(Request.Power01, 0.f, 1.f);
 
 	// Flat impulse only (D3). Mass matters (bVelChange=false) so a Ballooned,
@@ -285,17 +343,99 @@ void UPBShotComponent::ExecuteShot(const FPBShotRequest& Request)
 
 	Ball->CollisionSphere->AddImpulse(Dir3D.GetSafeNormal() * Magnitude, NAME_None, /*bVelChange=*/false);
 
-	++StrokeCount;
-	OnStrokeCountChanged.Broadcast(StrokeCount);
+	// Strokes are authoritative state on the PlayerState — the client never runs
+	// this funnel, so the count only advances here on the server.
+	if (APBPlayerState* PS = Ball->GetPlayerState<APBPlayerState>())
+	{
+		PS->AddStroke();
+	}
 }
 
 void UPBShotComponent::ResetForNewHole()
 {
-	StrokeCount = 0;
+	// Local state machine only — strokes live on the PlayerState (reset there by
+	// the GameMode's RestartHole).
 	AtRestTimer = 0.f;
 	RollTimer = 0.f;
+	bWaitingForShotMotion = false;
 	SetShotState(EPBShotState::Idle);
-	OnStrokeCountChanged.Broadcast(StrokeCount);
+}
+
+bool UPBShotComponent::IsShotRequestStructurallyValid(const FPBShotRequest& Request)
+{
+	const bool bFiniteDir = FMath::IsFinite(Request.Dir.X) && FMath::IsFinite(Request.Dir.Y);
+	const bool bFinitePower = FMath::IsFinite(Request.Power01);
+	return bFiniteDir && bFinitePower
+		&& Request.Power01 >= -KINDA_SMALL_NUMBER
+		&& Request.Power01 <= 1.f + KINDA_SMALL_NUMBER;
+}
+
+bool UPBShotComponent::Server_RequestShot_Validate(const FPBShotRequest& Request)
+{
+	// Cheat guard only (a failed validate disconnects the sender): reject a
+	// structurally-impossible payload. State gates (phase, at-rest, lock, finished)
+	// are re-checked in _Implementation and silently ignored so an honest, slightly
+	// mistimed shot under latency never kicks the player.
+	return IsShotRequestStructurallyValid(Request);
+}
+
+void UPBShotComponent::Server_RequestShot_Implementation(const FPBShotRequest& Request)
+{
+	TryExecuteServerShot(Request);
+}
+
+bool UPBShotComponent::ServerShotStateAllows() const
+{
+	const APBBallPawn* Ball = GetBall();
+	if (!Ball)
+	{
+		return false;
+	}
+	// The component ticks on the server for every ball, so AtRestTimer is the
+	// authority's own at-rest measurement. A mid-shot or still-rolling ball is out.
+	if (ShotState != EPBShotState::Idle || AtRestTimer < AtRestDuration)
+	{
+		return false;
+	}
+	if (Ball->Attributes.bShotLocked)
+	{
+		return false; // Lock (CONVENTIONS §3)
+	}
+	if (const UWorld* World = GetWorld())
+	{
+		if (const APBMatchGameState* GS = World->GetGameState<APBMatchGameState>())
+		{
+			if (!GS->ArePlayerShotsAllowed())
+			{
+				return false; // wrong phase (Countdown / HoleResults / …)
+			}
+		}
+	}
+	if (const APBPlayerState* PS = Ball->GetPlayerState<APBPlayerState>())
+	{
+		if (PS->IsFinished())
+		{
+			return false; // already sunk this hole
+		}
+	}
+	return true;
+}
+
+void UPBShotComponent::TryExecuteServerShot(const FPBShotRequest& Request)
+{
+	if (!ServerShotStateAllows())
+	{
+		return; // silently rejected — honest clients see nothing, cheats gain nothing
+	}
+
+	ExecuteShot(Request);
+
+	// Server enters the same rolling lock so a re-entrant RPC is rejected until the
+	// ball comes to rest again (ServerShotStateAllows gates on ShotState + at-rest).
+	RollTimer = 0.f;
+	AtRestTimer = 0.f;
+	bWaitingForShotMotion = true;
+	SetShotState(EPBShotState::Rolling);
 }
 
 void UPBShotComponent::SetShotState(EPBShotState NewState)

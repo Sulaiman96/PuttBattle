@@ -132,6 +132,11 @@ APBBallPawn::APBBallPawn()
 	PrimaryActorTick.bCanEverTick = true;
 	bReplicates = true;
 	SetReplicatingMovement(true);
+	// Baseline net cadence for a moving ball (raised/lowered live by the throttle).
+	// Use the setter — the raw NetUpdateFrequency field is private + deprecated in
+	// UE 5.5, so a direct write would break the zero-new-warnings DoD.
+	SetNetUpdateFrequency(MovingNetUpdateHz);
+	SetMinNetUpdateFrequency(RestNetUpdateHz);
 
 	CollisionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionSphere"));
 	CollisionSphere->InitSphereRadius(BaseRadiusCm); // seed; BeginPlay re-applies the BP value (1uu = 1cm)
@@ -142,6 +147,9 @@ APBBallPawn::APBBallPawn()
 	CollisionSphere->SetAngularDamping(AngularDamping);
 	CollisionSphere->SetNotifyRigidBodyCollision(true); // hit events for Anchor/surfaces
 	CollisionSphere->SetGenerateOverlapEvents(true);    // cup / checkpoint / hazard triggers
+	// Server-authoritative simulation: send corrective physics state to the owning
+	// (autonomous-proxy) client too, so a high-latency owner can't drift (T3.1).
+	CollisionSphere->bReplicatePhysicsToAutonomousProxy = true;
 	// Mass is owned solely by ApplyAttributes() (§3 one-apply-place) — it sets the
 	// scale-dependent override at BeginPlay, so no constructor mass write is needed.
 	RootComponent = CollisionSphere;
@@ -165,6 +173,10 @@ void APBBallPawn::BeginPlay()
 	{
 		CollisionSphere->SetSphereRadius(BaseRadiusCm); // apply the BP-authored size
 	}
+	// Predictive Interpolation smooths the replicated ball on machines where it is
+	// a simulated proxy (remote balls) while keeping the owning client responsive
+	// (T3.1, D22: discrete shots + ghost balls make latency benign). No-op offline.
+	SetPhysicsReplicationMode(EPhysicsReplicationMode::PredictiveInterpolation);
 	ApplyPhysicsTuning();
 	ApplyAttributes();
 }
@@ -175,6 +187,12 @@ void APBBallPawn::Tick(float DeltaSeconds)
 
 	// Re-apply tuning every frame so pb.Ball.* CVar edits take effect live in PIE.
 	ApplyPhysicsTuning();
+
+	// Server decides the replication cadence: fast while moving, slow at rest.
+	if (HasAuthority())
+	{
+		UpdateNetUpdateRate();
+	}
 
 	// Clamp the PLANAR speed only, so a max-power roll stays believable while a
 	// ramp still launches the ball off the map (D3: vertical motion is terrain-
@@ -270,6 +288,20 @@ void APBBallPawn::ApplyPhysicsTuning()
 	{
 		CollisionSphere->SetLinearDamping(LinEff);
 		LastLinearDampingApplied = LinEff;
+	}
+}
+
+void APBBallPawn::UpdateNetUpdateRate()
+{
+	// Moving → MovingNetUpdateHz, at rest → RestNetUpdateHz. Only write on a change
+	// (the setter touches the net driver's actor record). Mirrors the damping-cache
+	// pattern so a static rate costs nothing per frame.
+	const bool bMoving = GetSpeed() > NetRestSpeedThreshold;
+	const float DesiredHz = bMoving ? MovingNetUpdateHz : RestNetUpdateHz;
+	if (DesiredHz != LastNetHzApplied)
+	{
+		SetNetUpdateFrequency(DesiredHz);
+		LastNetHzApplied = DesiredHz;
 	}
 }
 

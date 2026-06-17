@@ -11,10 +11,14 @@ class APBCheckpointActor;
 class APBTeePad;
 
 /**
- * Phase 1 offline referee: just wires the ball pawn + PB player controller and
- * provides a hole-restart that respawns the ball at the tee. The full phase
- * machine (HoleIntro → Countdown → Playing → … CONVENTIONS §7) lands in Phase 4;
- * this stays deliberately thin so it can be replaced without churn.
+ * The base PB referee. It owns the player-agnostic course rules every mode
+ * shares: respawn-at-checkpoint (D7), checkpoint tracking, and hole restart.
+ * Used directly for offline feel-testing (Phases 1–2); APBMatchGameMode extends
+ * it with the multiplayer phase machine, scoring, and seamless travel (Phase 3+).
+ *
+ * Checkpoint state lives on APBPlayerState (CheckpointIndex), not on the pawn —
+ * it must be server-authoritative and survive re-possession/travel (T3.3). This
+ * mode sets PlayerStateClass so even offline play carries one PB PlayerState.
  */
 UCLASS()
 class PUTTBATTLE_API APBGameMode : public AGameModeBase
@@ -24,27 +28,31 @@ class PUTTBATTLE_API APBGameMode : public AGameModeBase
 public:
 	APBGameMode();
 
-	/** Respawn the controller's ball at the tee pad and reset its strokes. */
+	/** Respawn the controller's ball at the tee and reset its per-hole state. */
 	UFUNCTION(BlueprintCallable, Category = "PB|Match")
 	void RestartHole(APlayerController* PC);
 
-	/** Record a ball reaching a checkpoint; keeps only its highest index (D7). */
+	/** Record a ball reaching a checkpoint on its PlayerState (keeps the highest, D7). */
 	void ActivateCheckpoint(APBBallPawn* Ball, APBCheckpointActor* Checkpoint);
 
 	/**
-	 * Teleport the ball to its latest activated checkpoint (tee if none), zero
-	 * velocity, no stroke change (D7). The single respawn path for water, void,
-	 * and KillZ falls.
+	 * Teleport the ball to its PlayerState's latest activated checkpoint (tee if
+	 * none), zero velocity, no stroke change (D7). The single respawn path for
+	 * water, void, and KillZ falls.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "PB|Match")
 	void RespawnAtCheckpoint(APBBallPawn* Ball);
+
+	/**
+	 * A ball was accepted by a cup (server). Base mode does nothing (offline has
+	 * no match flow); APBMatchGameMode records finish order/time + spectate.
+	 */
+	virtual void NotifyBallSunk(APBBallPawn* Ball) {}
 
 protected:
 	/** Find the first tee pad in the level (Phase 1: one hole, one tee). */
 	APBTeePad* FindTeePad() const;
 
-private:
-	/** Each ball's highest-activated checkpoint (per PlayerState in Phase 3+). */
-	UPROPERTY(Transient)
-	TMap<TObjectPtr<APBBallPawn>, TObjectPtr<APBCheckpointActor>> LatestCheckpoint;
+	/** The placed checkpoint whose CheckpointIndex matches (nullptr for INDEX_NONE). */
+	APBCheckpointActor* FindCheckpointByIndex(int32 Index) const;
 };

@@ -150,3 +150,53 @@ caller (Phase 6) the stack exists for.
 and mark the array `UPROPERTY(Transient)`, matching the cup/GameMode container pattern.
 **Why:** Makes the held definitions GC-reachable while they govern play; behaviour-neutral today.
 **Touches:** `Surfaces/PBSurfaceSubsystem.{h,cpp}`.
+
+### D-10 — Subclass the *Base* framework quartet, not the legacy MatchState classes   (2026-06-17)
+**Context:** Phase 3 (T3.2) needs a GameMode/GameState that we drive through `EPBMatchPhase`. UE offers
+`AGameMode`/`AGameState` (which carry Epic's auto-driven `MatchState` FSM: WaitingToStart→InProgress→…)
+and the leaner `AGameModeBase`/`AGameStateBase`.
+**Decision:** `APBMatchGameMode : AGameModeBase`, `APBMatchGameState : AGameStateBase`,
+`APBLobbyGameMode : AGameModeBase`, `APBLobbyGameState : AGameStateBase`. Verified against 5.7 engine source.
+**Why:** We own every phase transition; the legacy MatchState machine would run its own state changes and
+fight ours. The Base classes give the replicated-quartet plumbing without the competing FSM. (Also keeps
+the door shut on accidentally relying on `StartMatch()`/`MatchState` semantics that don't match our timer model.)
+**Touches:** `Match/PBMatchGameMode.*`, `Match/PBMatchGameState.*`, `Match/PBLobbyGameMode.*`, `Match/PBLobbyGameState.*`.
+
+### D-11 — Match/lobby GameModes are forced via the `?game=` travel URL, not by changing map settings   (2026-06-17)
+**Context:** The multiplayer flow must run `APBMatchGameMode` on the hole map, but `V_A`'s World Settings
+GameMode override is `BP_PBGameMode` (the offline referee), which the human is actively using for Phase 1–2
+**feel-testing**. Changing `GlobalDefaultGameMode` or `V_A`'s World Settings to the match mode would gate
+input behind the phase machine and break that testing.
+**Decision:** Drive both hops with a `?game=/Script/PuttBattle.PB(Lobby|Match)GameMode` URL option
+(`UPBSessionSubsystem` lobby travel; `APBLobbyGameMode::RequestStartMatch` match travel). Confirmed in
+`UGameInstance::CreateGameModeForURL` (GameInstance.cpp:1522-1545) that a URL `?game=` overrides the map's
+World Settings `DefaultGameMode`. The shot-gating code is also written to stay permissive when there is **no**
+`APBMatchGameState` (offline), so `V_A` keeps working unchanged for feel-testing.
+**Why:** Smallest change that adds the match flow without touching the maps the human is iterating on, and
+without an editor round-trip (the bridge was down this session). No `GlobalDefaultGameMode`/World-Settings edits.
+**Touches:** `Net/PBSessionSubsystem.*`, `Match/PBLobbyGameMode.*`, `Shot/PBShotComponent.cpp` (permissive offline gating).
+
+### D-12 — Ball replication cadence is a net-rate throttle, not true net dormancy   (2026-06-17)
+**Context:** plans/03 T3.1 asks for "30 Hz while moving, 5 Hz at rest via dormancy-ish toggling". The 5.7
+research flagged that `SetNetDormancy(DORM_DormantAll)` on an actively physics-replicated body can freeze a
+ball mid-motion on clients if a **non-shot** force (boost volume, future Gust/Tornado) moves a dormant body.
+**Decision:** Throttle `SetNetUpdateFrequency` (30 Hz moving / 5 Hz at rest, both `EditAnywhere`) from the
+ball's own motion each server tick instead of toggling dormancy. Smoothing is `EPhysicsReplicationMode::
+PredictiveInterpolation` + `bReplicatePhysicsToAutonomousProxy`.
+**Why:** Achieves the bandwidth goal literally and safely; avoids the dormancy freeze-mid-motion failure mode
+for a body that has force sources other than the player's shot. "dormancy-ish" in the plan signalled an
+approximation was acceptable.
+**Touches:** `Ball/PBBallPawn.{h,cpp}`.
+
+### D-13 — Strokes + checkpoint tracking live on APBPlayerState; the base GameMode adopts it   (2026-06-17)
+**Context:** Shots became a server RPC (T3.1), so a client's local `UPBShotComponent` no longer runs
+`ExecuteShot` — a stroke counter on the component would never advance on clients. Checkpoints likewise must be
+server-authoritative and per-player (T3.3), replacing the base mode's `TMap<BallPawn,Checkpoint>`.
+**Decision:** `APBPlayerState` owns `Strokes` (replicated, server-incremented in `ExecuteShot`) and
+`CheckpointIndex` (server-set on activation; respawn resolves the actor by index). The HUD binds the
+PlayerState's `OnStrokesChanged`. The **base** `APBGameMode` now sets `PlayerStateClass = APBPlayerState` so
+offline play and the match share one PlayerState and one checkpoint path.
+**Why:** Single server-authoritative source of per-player truth; the offline feel-test map keeps working
+(strokes still advance because the host is authority and runs `ExecuteShot` locally). Avoids a second
+PlayerState class.
+**Touches:** `Match/PBPlayerState.*`, `Match/PBGameMode.*`, `Shot/PBShotComponent.*`, `UI/PBHUDWidget.*`, `Course/PBCheckpointActor` (unchanged call site).

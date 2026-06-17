@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "Match/PBMatchTypes.h"
 #include "PBPlayerController.generated.h"
 
 class UInputMappingContext;
@@ -30,6 +31,36 @@ public:
 
 	virtual void PlayerTick(float DeltaTime) override;
 
+	/**
+	 * Server seam: this player finished the hole → drop into spectate (T3.3). The
+	 * real spectator system (free-switch between players, env powerups) is Phase 8;
+	 * this just notifies the owning client so it can hold a placeholder camera. Kept
+	 * as the single entry point so Phase 8 swaps the body, not the callers.
+	 */
+	void EnterSpectate();
+
+	/** Server seam: leave spectate (called at each hole start so a player who sank
+	 *  the previous hole returns to play). Mirrors EnterSpectate; Phase 8 swaps bodies. */
+	void ExitSpectate();
+
+	/** True once this client has entered the (placeholder) spectate state. */
+	UFUNCTION(BlueprintPure, Category = "PB|Spectate")
+	bool IsSpectating() const { return bSpectating; }
+
+	// --- Lobby (T3.4; the lobby UMG calls these on the owning client) ------
+
+	/** Toggle this player's lobby ready flag (server-authoritative). */
+	UFUNCTION(Server, Reliable, WithValidation, BlueprintCallable, Category = "PB|Lobby")
+	void Server_SetReady(bool bReady);
+
+	/** Host-only: push the previewed match settings (the GameMode re-checks host + clamps). */
+	UFUNCTION(Server, Reliable, WithValidation, BlueprintCallable, Category = "PB|Lobby")
+	void Server_SetMatchSettings(FPBMatchSettings NewSettings);
+
+	/** Host-only: request the match start (the GameMode re-checks host + all-ready). */
+	UFUNCTION(Server, Reliable, WithValidation, BlueprintCallable, Category = "PB|Lobby")
+	void Server_RequestStartMatch();
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
@@ -50,6 +81,22 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "PB|Input")
 	TObjectPtr<UInputAction> CancelAction;
 
+	/** Owning-client notification that spectate has begun (placeholder, Phase 8). */
+	UFUNCTION(Client, Reliable)
+	void Client_EnterSpectate();
+
+	/** Owning-client notification that spectate has ended (new hole). */
+	UFUNCTION(Client, Reliable)
+	void Client_ExitSpectate();
+
+	/** BP hook to swap to a placeholder fixed camera while spectating (Phase 8 real). */
+	UFUNCTION(BlueprintImplementableEvent, Category = "PB|Spectate")
+	void OnEnterSpectate();
+
+	/** BP hook to restore the gameplay camera when spectate ends (Phase 8 real). */
+	UFUNCTION(BlueprintImplementableEvent, Category = "PB|Spectate")
+	void OnExitSpectate();
+
 private:
 	void OnDragStarted(const FInputActionValue& Value);
 	void OnDragReleased(const FInputActionValue& Value);
@@ -63,4 +110,7 @@ private:
 
 	/** True between LMB-down and LMB-up so PlayerTick streams drag updates. */
 	bool bDragging = false;
+
+	/** Local-only spectate flag (set by Client_EnterSpectate). */
+	bool bSpectating = false;
 };

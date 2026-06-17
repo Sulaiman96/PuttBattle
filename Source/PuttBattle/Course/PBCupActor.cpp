@@ -5,6 +5,7 @@
 #include "Ball/PBBallPawn.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Match/PBGameMode.h"
 
 APBCupActor::APBCupActor()
 {
@@ -75,8 +76,15 @@ void APBCupActor::AcceptBall(APBBallPawn* Ball)
 	}
 	SunkBalls.Add(Ball);
 
-	// Settle the ball into the cup centre and stop it (presentation in Phase 1).
+	// Settle the ball into the cup centre and stop it.
 	Ball->TeleportToAndStop(GetActorLocation(), Ball->GetActorRotation());
+
+	// Server records the finish: order, server timestamp, spectate routing, and the
+	// all-finished hole-end check (APBMatchGameMode; base mode no-ops offline).
+	if (APBGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<APBGameMode>() : nullptr)
+	{
+		GM->NotifyBallSunk(Ball);
+	}
 
 	OnBallSunk.Broadcast(Ball);
 }

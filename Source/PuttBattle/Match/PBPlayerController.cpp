@@ -6,6 +6,9 @@
 #include "Camera/PBCameraSubsystem.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Engine/World.h"
+#include "Match/PBLobbyGameMode.h"
+#include "Match/PBPlayerState.h"
 #include "Shot/PBShotComponent.h"
 
 APBPlayerController::APBPlayerController()
@@ -112,6 +115,77 @@ void APBPlayerController::OnCancel(const FInputActionValue& Value)
 	if (UPBShotComponent* Shot = GetShotComponent())
 	{
 		Shot->CancelAim();
+	}
+}
+
+void APBPlayerController::EnterSpectate()
+{
+	// Server-authoritative entry (called from the match GameMode on sink). Tell the
+	// owning client to hold the placeholder camera; on the listen-server host this
+	// PC is local authority, so the Client RPC simply runs locally.
+	if (HasAuthority())
+	{
+		Client_EnterSpectate();
+	}
+}
+
+void APBPlayerController::ExitSpectate()
+{
+	if (HasAuthority())
+	{
+		Client_ExitSpectate();
+	}
+}
+
+void APBPlayerController::Client_EnterSpectate_Implementation()
+{
+	bSpectating = true;
+	OnEnterSpectate(); // BP placeholder: swap to a fixed cam (real spectate is Phase 8)
+}
+
+void APBPlayerController::Client_ExitSpectate_Implementation()
+{
+	if (!bSpectating)
+	{
+		return; // not spectating — nothing to restore
+	}
+	bSpectating = false;
+	OnExitSpectate(); // BP placeholder: restore the gameplay camera
+}
+
+// _Validate: these carry player-supplied input, so §2 wants WithValidation. The real
+// authority gates (host-only, range clamps, all-ready) live server-side in the lobby
+// GameMode, so validation only needs to confirm the payload isn't garbage.
+bool APBPlayerController::Server_SetReady_Validate(bool bReady) { return true; }
+
+bool APBPlayerController::Server_SetMatchSettings_Validate(FPBMatchSettings NewSettings)
+{
+	return FMath::IsFinite(NewSettings.MapTimeSeconds) && FMath::IsFinite(NewSettings.FirstFinishClampSeconds);
+}
+
+bool APBPlayerController::Server_RequestStartMatch_Validate() { return true; }
+
+void APBPlayerController::Server_SetReady_Implementation(bool bReady)
+{
+	if (APBPlayerState* PS = GetPlayerState<APBPlayerState>())
+	{
+		PS->SetReady(bReady);
+	}
+}
+
+void APBPlayerController::Server_SetMatchSettings_Implementation(FPBMatchSettings NewSettings)
+{
+	if (APBLobbyGameMode* Lobby = GetWorld() ? GetWorld()->GetAuthGameMode<APBLobbyGameMode>() : nullptr)
+	{
+		Lobby->HostSetMatchSettings(this, NewSettings); // GameMode re-checks host + clamps
+	}
+}
+
+void APBPlayerController::Server_RequestStartMatch_Implementation()
+{
+	if (APBLobbyGameMode* Lobby = GetWorld() ? GetWorld()->GetAuthGameMode<APBLobbyGameMode>() : nullptr)
+	{
+		Lobby->RequestStartMatch(this); // GameMode re-checks host + all-ready
 	}
 }
 
