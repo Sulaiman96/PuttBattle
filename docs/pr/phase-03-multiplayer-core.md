@@ -122,6 +122,8 @@ the C++ is the full, testable backbone.
   and the map-time fallback; full DNF handling lands with Phase 4.
 
 ## Remaining (human)
+> **Test guide: `docs/pr/phase-03-testing.md`** — exact steps for the local PIE match test (no Steam), the
+> Steam two-instance flow, packaging, and a per-feature verification checklist.
 - **UA-11** Steam client running on the dev machine (dev AppId 480).
 - **UA-12** Two-machine / two-instance Steam test: create/find/join + a 3-hole match; host settings in force;
   host-quit exits gracefully on the client.

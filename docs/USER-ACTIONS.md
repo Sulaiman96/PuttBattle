@@ -29,8 +29,11 @@ Written for someone who has **never opened Unreal Engine**. When an agent pauses
 - [ ] **UA-10 · Surface feel sign-off** (10 min): have the agent teleport your ball between unlabelled test strips; call out which surface you think you're on from feel alone. Ice/sand/boost/sticky should be unmistakable. *Gates phase exit.*
 
 ## Phase 3 — Multiplayer
-- [ ] **UA-11 · Steam client** installed and logged in on the dev machine (dev AppId 480 needs it running).
-- [ ] **UA-12 · Two-machine Steam test** (30 min): second PC or a friend with the build, one 3-hole match over a real network. Inviting: with the game running, **Shift+Tab** opens the Steam overlay → Friends → right-click → *Invite to Game* (works on the dev AppId as long as both machines run the build). *Why you: agents can't operate a second Steam account on a second network.*
+> **Step-by-step test guide: `docs/pr/phase-03-testing.md`** — covers the no-Steam local PIE match test
+> (Test A, do this first), the Steam two-instance flow (Test B = UA-12), packaging, and a per-feature
+> verification checklist. The items below are the gates; the guide is the how-to.
+- [ ] **UA-11 · Steam client** installed and logged in on the dev machine (dev AppId 480 needs it running). Only required for the Steam test (Test B); the local PIE match test (Test A) needs no Steam.
+- [ ] **UA-12 · Two-machine Steam test** (30 min): second PC or a friend with the build, one 3-hole match over a real network. Inviting: with the game running, **Shift+Tab** opens the Steam overlay → Friends → right-click → *Invite to Game* (works on the dev AppId as long as both machines run the build). Full steps + what to verify in `docs/pr/phase-03-testing.md` (Test B). *Why you: agents can't operate a second Steam account on a second network.*
 - [ ] **UA-13 · First playtest** (one evening): recruit 2 friends, play graybox matches, collect "what felt bad" notes. Agent prepares the build and a feedback sheet. *This is the project's most important quality gate — if rolling a ball isn't fun in graybox, stop and tune before Phase 4.*
 
 ## Phase 6 — Powerup balance
