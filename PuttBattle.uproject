@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "5.7",
+	"EngineAssociation": "5.8",
 	"Category": "",
 	"Description": "",
 	"Modules": [
@@ -43,15 +43,11 @@
 			"Enabled": true
 		},
 		{
-			"Name": "UE_MCP_Bridge",
+			"Name": "ModelContextProtocol",
 			"Enabled": true
 		},
 		{
 			"Name": "PCG",
-			"Enabled": true
-		},
-		{
-			"Name": "GameplayAbilities",
 			"Enabled": true
 		}
 	]

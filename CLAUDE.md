@@ -79,19 +79,18 @@ Git + LFS (`*.uasset, *.umap, *.png, *.fbx, *.wav` in `.gitattributes`). Never c
 - When a plan file and the code disagree with README.md, README wins; record the conflict in `docs/DECISIONS.md` with date and resolution.
 - Steps referencing a **UA-number** belong to the human (`docs/USER-ACTIONS.md`). Never perform, simulate, or mark them done yourself — surface them as a checklist and stop. Never ask the human to do work that isn't UA-shaped (accounts, secrets, GUI-only, second machine, other humans, feel judgment); that work is yours.
 
-## 11. Editor MCP tools (ue-mcp)
-One MCP server, **`ue-mcp`**, is configured in `.mcp.json` (setup: `docs/MCP-SETUP.md`). It talks to the `UE_MCP_Bridge` plugin in the open editor and covers **both** level/actor work and Blueprint/material/asset/Niagara/UMG work. Tools are **category + action** shaped — e.g. `project(action="get_status")`, `level(action="get_outliner")`, `blueprint(...)`, `material(...)`, `asset(...)`. Consolidated from the former two-server (UnrealClaude + VibeUE) setup — see `docs/DECISIONS.md` D-6.
+## 11. Editor MCP tools (built-in Unreal MCP)
+The editor is driven through Epic's first-party **Unreal MCP** plugin (`ModelContextProtocol`, Experimental, shipped in UE 5.8), wired in `.mcp.json` as server **`unreal-mcp`** — HTTP+SSE at `http://127.0.0.1:8000/mcp`, auto-started with the editor via `Config/DefaultEditorPerProjectUserSettings.ini`. Setup + troubleshooting: `docs/MCP-SETUP.md`. (The former third-party `ue-mcp` / `UE_MCP_Bridge` bridge — and the older UnrealClaude + VibeUE plugins — were removed; history is in `docs/DECISIONS.md` D-6, D-14, D-15. Their tool names — `project(...)`, `level(...)`, `blueprint(...)` — and the `ue-mcp-*` skills no longer exist.)
 
 Rules (non-negotiable):
-1. **Editor-touching task? Check first.** Call `project` → `get_status` at session start. If the editor is closed or the bridge is down, do NOT stall or improvise: complete the C++/data/asset-definition work, then list the editor-side steps for the human under a "Requires editor" heading.
-2. **Discover before you assume.** ue-mcp tools are action-dispatched with many actions per category; inspect a tool's available actions/parameters before invoking, and read state back (get before set). Never guess action names or required params.
-3. **Full asset paths** (`/Game/Data/Powerups/DA_Gust`), never bare names. **Compile a Blueprint before adding variable/graph nodes that reference its members.**
-4. **One asset-lifecycle path:** use ue-mcp's asset operations (create/save/move/duplicate/delete/import) for all asset lifecycle — never ad-hoc; `move` for renames, never duplicate+delete.
-5. **Destructive operations** (delete asset/actor, overwrite a map) only when the current task explicitly names that thing. "Clean up" is never a deletion licence. Any map edit → re-run the variant validator (plans/07).
-6. **Verify visually**: after scene/Blueprint changes, capture the viewport (or read logs) and confirm the result rather than assuming success.
-7. **The repo is the source of truth**: MCP-created assets must land in the `Content/` layout per §1 and be committed; delete transient experiments before ending the session.
-8. The tool allow-list and any auto-approve are **human decisions** — never edit `.claude/settings.json` permissions as part of a task. Never enable **GAS/GameplayAbilities** via the bridge or the `ue-mcp` wizard (D22).
-9. For UE 5.7 API questions, prefer the engine source in `Engine/Source` (§10) over guessing — ue-mcp has no bundled 5.7 doc oracle.
+1. **Editor-touching task? Check the server first.** It only works with the editor open. If it's closed or not connected, do NOT stall or improvise: complete the C++/data/asset-definition work, then list the editor-side steps for the human under a "Requires editor" heading.
+2. **Discover before you assume.** The server publishes its capabilities as *toolsets* — call `list_toolsets` / `describe_toolset` to read the live tool names and input schemas before invoking, and read state back (get before set). Never guess tool names or params. The built-in server is **far narrower** than the old bridge (expect no Niagara/StateTree/landscape/Blueprint-graph authoring); when a capability is missing, do the work another way or hand it to the human as an editor step.
+3. **Full asset paths** (`/Game/Data/Powerups/DA_Gust`), never bare names.
+4. **Destructive operations** (delete asset/actor, overwrite a map) only when the current task explicitly names that thing. "Clean up" is never a deletion licence. Any map edit → re-run the variant validator (plans/07).
+5. **Verify**: after scene/Blueprint changes, read the state back (or capture the viewport) and confirm the result rather than assuming success.
+6. **The repo is the source of truth**: MCP-created assets must land in the `Content/` layout per §1 and be committed; delete transient experiments before ending the session.
+7. The tool allow-list and any auto-approve are **human decisions** — never edit `.claude/settings.json` permissions as part of a task. Never enable **GAS/GameplayAbilities** (D22).
+8. For UE 5.8 API questions, prefer the engine source in `Engine/Source` (§10) over guessing.
 
 ## 12. Working with the human (read this — it shapes every interaction)
 The human is a **senior C#/.NET engineer** and a **novice at game development and Unreal Engine**, deliberately learning both through this project. Consequences:

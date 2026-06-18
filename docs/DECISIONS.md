@@ -210,3 +210,70 @@ offline play and the match share one PlayerState and one checkpoint path.
 (strokes still advance because the host is authority and runs `ExecuteShot` locally). Avoids a second
 PlayerState class.
 **Touches:** `Match/PBPlayerState.*`, `Match/PBGameMode.*`, `Shot/PBShotComponent.*`, `UI/PBHUDWidget.*`, `Course/PBCheckpointActor` (unchanged call site).
+
+### D-14 — Engine 5.7→5.8 upgrade; editor MCP switched from `ue-mcp` to the built-in "Unreal MCP"   (2026-06-18)
+**Context:** The human upgraded the project to UE 5.8 (`EngineAssociation` in `PuttBattle.uproject`) to use the
+first-party MCP server Epic ships in 5.8. Two blockers surfaced: (a) the targets still declared 5.7 build
+settings, and (b) the vendored `UE_MCP_Bridge` plugin (the `ue-mcp` bridge — supported only to 5.7; latest npm
+`1.0.80` still 5.4–5.7) **fails to compile on 5.8**: UE 5.8 changed `FJsonObject::Values` keys from `FString`
+to `FStringType` and relocated `InstancedStruct.h` out of the deprecated `StructUtils` plugin (7 errors across
+6 bridge handler files; **zero** errors in game code).
+**Decision:** (1) Bump both target files to 5.8 settings (`BuildSettingsVersion.V7`,
+`EngineIncludeOrderVersion.Unreal5_8`). (2) Disable `UE_MCP_Bridge` in `.uproject` (kept vendored for a future
+5.8-capable upstream release) and enable Epic's built-in `ModelContextProtocol` plugin (Experimental;
+auto-pulls `ToolsetRegistry` + `EngineAssetDefinitions`). Server `unreal-mcp` runs HTTP+SSE on
+`http://127.0.0.1:8000/mcp`; `bAutoStartServer=True` set in `Config/DefaultEditorPerProjectUserSettings.ini`;
+`.mcp.json` repointed from the ue-mcp WebSocket server to the built-in HTTP server.
+**Why:** The human chose the first-party server (their reason for upgrading) over hand-patching vendored
+third-party code that an upstream update would clobber. Bumping target settings (vs UBT's other suggested fix,
+`TargetBuildEnvironment.Unique`, which would force recompiling the whole installed engine) is the standard
+cross-version upgrade step and keeps the shared-binary installed-engine build.
+**Trade-offs / carried forward:**
+- The built-in plugin is **Experimental** and far narrower than ue-mcp (5 toolsets vs ue-mcp's 19 categories /
+  400+ actions: no Niagara/StateTree/landscape/Blueprint-graph authoring). `CLAUDE.md §11` and the `ue-mcp-*`
+  skills now describe an **inactive** tool and need rewriting for the built-in workflow (follow-up).
+- `GameplayAbilities` is now **orphaned** — its only justification (D-6) was the `UE_MCP_Bridge` hard
+  dependency. With the bridge off, nothing requires it; removable per D22 in a cleanup pass.
+- Only one editor instance can bind `:8000` (Phase-3 two-instance test → 2nd instance has no MCP).
+- **Revert path:** ~~re-enable `UE_MCP_Bridge` + restore the ue-mcp `.mcp.json` entry~~ — **superseded by
+  D-15** (ue-mcp fully removed 2026-06-18). Reverting now means re-adding the bridge from upstream once it
+  ships 5.8 support (or dropping back to 5.7).
+**Verification (2026-06-18):** game + editor targets compile clean on 5.8; headless `-nullrhi` boot loads all
+plugins (incl. `ModelContextProtocol`/`ToolsetRegistry`) and passes both `PuttBattle.Tests.*` specs; MCP server
+binds `:8000` and `GET /mcp` → HTTP 405 (correct for a POST/SSE endpoint).
+**Touches:** `PuttBattle.uproject`, `Source/PuttBattle.Target.cs`, `Source/PuttBattleEditor.Target.cs`,
+`Config/DefaultEditorPerProjectUserSettings.ini`, `.mcp.json`, `docs/MCP-SETUP.md`, `CLAUDE.md` §11,
+`docs/LEARNING.md`, `docs/pr/engine-58-upgrade.md`.
+
+### D-15 — `ue-mcp` fully removed (revert path abandoned)   (2026-06-18)
+**Context:** D-14 switched the active editor MCP to Epic's built-in `unreal-mcp` server but kept the
+`ue-mcp` / `UE_MCP_Bridge` bridge vendored-but-disabled as a revert path. With 5.8 confirmed working on the
+first-party server, the human decided not to keep the dead third-party bridge around — the leftovers
+(disabled plugin, npm package, skills, settings hooks) only confuse tooling by pointing at tools that no
+longer load.
+**Decision:** Delete everything ue-mcp: the `Plugins/UE_MCP_Bridge/` source tree; the `ue-mcp` npm
+devDependency (so `package.json` + `package-lock.json`, both ue-mcp-only) and `node_modules/`; `ue-mcp.yml`;
+the four `.claude/skills/ue-mcp-*` skills; the disabled `UE_MCP_Bridge` entry in `PuttBattle.uproject`; and the
+stale `ue-mcp`/`vibeue` references in the Claude settings + docs. Also swept the dead `Plugins/UnrealClaude` +
+`Plugins/VibeUE` build shells (empty `Intermediate/` folders left behind by D-6, untracked). The built-in
+`unreal-mcp` server is now the **sole** editor MCP.
+**Why:** The revert path's only value — rolling back to ue-mcp's breadth — requires an upstream 5.8 release
+that does not exist. Until it does, the vendored code is dead weight. Removing it makes the repo match reality;
+if ue-mcp ever ships 5.8 support and we want it back, re-add it fresh from upstream (cleaner than resurrecting
+a stale vendored copy). The built-in server's narrowness (no Niagara/Blueprint-graph/landscape authoring) is
+the accepted cost, already noted in D-14.
+**Carried forward:** ~~`GameplayAbilities` is still orphaned (its only justification was the bridge, D-6/D-14) —
+removable per D22 in a separate pass.~~ **Done (2026-06-18):** the orphaned `GameplayAbilities` plugin entry was
+removed from `PuttBattle.uproject`. Pre-removal audit confirmed zero use: no `GameplayAbilities`/`AbilitySystem`/
+`UGameplayAbility`/`GameplayEffect`/`GameplayTasks` references in `Source/`, no `GameplayAbilities`/`GameplayTasks`
+in any `.Build.cs` (the module's `GameplayTags` dependency is unrelated and stays), and no `Content`/`Config`
+asset references — consistent with D22 (GAS never used in game code). **Needs an editor restart to take effect;**
+the human should confirm the 5.8 editor still opens cleanly afterward — if it warns about a missing plugin
+reference, some asset secretly touched GAS and this should be reverted and re-investigated.
+**One human step:** `.claude/settings.json` still carries a never-firing
+`mcp__ue-mcp__editor` PostToolUse hook; CONVENTIONS §11 forbids agents from editing that file's contents, so
+the human deletes the `hooks` block.
+**Touches:** `PuttBattle.uproject`, `Plugins/` (UE_MCP_Bridge + UnrealClaude + VibeUE removed), `package.json`
++ `package-lock.json` (deleted), `ue-mcp.yml` (deleted), `.claude/skills/ue-mcp-*` (deleted),
+`.claude/settings.local.json`, `docs/repo-root-files/.mcp.json`, `CLAUDE.md` §11, `docs/CONVENTIONS.md` §11,
+`docs/MCP-SETUP.md`, `docs/USER-ACTIONS.md` (T0.3 / UA-4…8), `docs/pr/engine-58-upgrade.md`.

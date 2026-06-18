@@ -11,16 +11,17 @@ Written for someone who has **never opened Unreal Engine**. When an agent pauses
 - [ ] **UA-2 · Create the blank project** (5 min): Launcher → Library → Launch 5.7 → Project Browser opens → **Games → Blank**. In the right panel: switch the toggle from Blueprint to **C++**, **untick Starter Content**, raytracing off; pick your repo folder as the location, name it `PuttBattle`, Create. First launch then compiles shaders for several minutes — a progress bar bottom-right; that's normal, let it finish. *Why you: the wizard is more reliable than a hand-scaffold; one-time.* The agent verifies and configures everything after.
 - [ ] **UA-3 · (Optional) Create the private GitHub repo** and authenticate `gh` so agents can push. *Why you: account auth.*
 
-### T0.3 — MCP integration (~15 min; agent does the repo plumbing) — **now `ue-mcp`** (consolidated 2026-06-13, DECISIONS D-6)
-> The original UA-4…7 (VibeUE API key, two-plugin GUI checks) are **obsolete** — we dropped UnrealClaude +
-> VibeUE for the single `ue-mcp` server. They're kept struck-through below for history; do the *ue-mcp*
-> versions instead. The agent has already deleted the old plugins and rewritten the config/docs.
-- [ ] **UA-4 · Run the installer** (editor closed): from the repo root run **`npx ue-mcp init`**. It auto-detects `PuttBattle.uproject`, asks which tool categories to enable, deploys `Plugins/UE_MCP_Bridge/`, and configures Claude Code. *Why you: interactive wizard, no unattended mode.*
-- [ ] **UA-5 · Decline GAS in the wizard** — when it lists tool categories / plugins to enable, **do NOT enable GameplayAbilities / GAS** (D22). Enhanced Input + Niagara are already on; leave the rest at defaults. *Why you: a deliberate design constraint the wizard can't know.*
-- [ ] **UA-6 · Compile the bridge** — open the editor; when it asks **"compile UE_MCP_Bridge?"** click **Yes** (~30–60 s) and let it finish loading. *Why you: editor GUI prompt.*
-- [ ] **UA-7 · First run approval** — launch `claude` from the repo root, approve the `ue-mcp` MCP server when prompted. *Why you: the approval prompt is the security boundary.*
-- [ ] **UA-8 · Watch the verification run** (10 min): the agent drives the MCP-SETUP checklist; you confirm a permission prompt appears on the first editor-mutating action (e.g. placing then deleting a cube). *Why you: you're testing the guardrails that protect you from agents.*
-- <s>UA-4 (old) · Get the free VibeUE API key · UA-5 · install key + `VIBEUE_API_KEY` · UA-6 · enable Unreal Claude + VibeUE plugins / auto-approve OFF · UA-7 · approve two servers</s> — superseded by the ue-mcp steps above.
+### T0.3 — MCP integration (~5 min) — **built-in Unreal MCP** (UE 5.8; supersedes ue-mcp, DECISIONS D-14/D-15)
+> UE 5.8 ships Epic's first-party MCP server (`ModelContextProtocol`), so the old `npx ue-mcp init` wizard and
+> the `UE_MCP_Bridge` compile step are **gone** — the server comes with the engine and is configured in-repo
+> (plugin enabled in `.uproject`, autostart `.ini`, `.mcp.json`, all done by the agent). The old ue-mcp steps
+> (and the even older VibeUE/UnrealClaude ones) are struck through below for history. Setup detail:
+> `docs/MCP-SETUP.md`.
+- [ ] **UA-6 · Open the UE 5.8 editor once** and confirm the Output Log shows the MCP server starting on `:8000`. (Optional: **Edit ▸ Plugins** → search **"Unreal MCP"** → confirm it and **Toolset Registry** show **Enabled**.) *Why you: editor GUI.*
+- [ ] **UA-7 · Restart the Claude Code session** with the editor open, then run `/mcp` and confirm `unreal-mcp` shows **connected**. *Why you: the session must reload `.mcp.json`; this connection is the go/no-go.*
+- [ ] **UA-8 · Watch a verification call** (5 min): ask the agent to run `list_toolsets`; confirm it returns the available toolsets and that the first editor-mutating action surfaces a permission prompt. *Why you: you're testing the guardrails that protect you from agents.*
+- <s>UA-4 · `npx ue-mcp init` wizard (editor closed) · UA-5 · decline GAS in the wizard · UA-6 (old) · compile `UE_MCP_Bridge` · UA-7 (old) · approve the `ue-mcp` server</s> — obsolete: the built-in server needs no wizard and no bridge compile (ue-mcp removed, D-15).
+- <s>UA-4 (older) · VibeUE API key · UA-5 · install key + `VIBEUE_API_KEY` · UA-6 · enable Unreal Claude + VibeUE plugins / auto-approve OFF · UA-7 · approve two servers</s> — superseded first by ue-mcp, now all removed.
 
 ## Phase 1 — Ball & shot
 - [ ] **UA-9 · Feel sign-off** (15 min): play the graybox hole and answer three questions: (1) does the ball slow like it has weight, or like it's on glass / in syrup? (2) can you reliably make a gentle short putt? (3) does full power feel *powerful*? Test on both mouse and trackpad. Useful vocabulary: floaty, heavy, twitchy at low power, mushy, slidey. Describe sensations — the agent translates them into damping/curve changes, and will give you `pb.*` console commands (press the backtick ` key in-game to open the console) so you can tweak values live mid-session instead of round-tripping. *Why you: agents verify math, not feel. Gates phase exit.*
