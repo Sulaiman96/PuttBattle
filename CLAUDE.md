@@ -92,6 +92,7 @@ Rules (non-negotiable):
 7. **The repo is the source of truth**: MCP-created assets must land in the `Content/` layout per §1 and be committed; delete transient experiments before ending the session.
 8. The tool allow-list and any auto-approve are **human decisions** — never edit `.claude/settings.json` permissions as part of a task. The bridge force-enables **GameplayAbilities** (its hard dependency, D-6) — that is the one tolerated GAS presence; never *author* GAS or enable it elsewhere (D22).
 9. For UE 5.8 API questions, prefer the engine source in `Engine/Source` (§10) over guessing.
+10. **Lay out graph nodes readably — never stack them.** When creating or editing any Blueprint/widget graph, give every node its own clear position: flow left→right along exec wires, keep generous horizontal spacing between columns and vertical spacing between parallel branches, and never drop a new node on top of (or overlapping) an existing one. Two nodes sharing the same `posX/posY` is a bug — a graph the human opens must be legible without untangling. After authoring nodes, run `blueprint(action="auto_layout")` (or set positions explicitly) and confirm no overlaps.
 
 ## 12. Working with the human (read this — it shapes every interaction)
 The human is a **senior C#/.NET engineer** and a **novice at game development and Unreal Engine**, deliberately learning both through this project. Consequences:
