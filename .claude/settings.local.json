@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__unreal__unreal_delete_actors"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "unreal"
+  ],
+  "enableAllProjectMcpServers": true
+}
