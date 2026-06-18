@@ -1,0 +1,11 @@
+ue-mcp:
+  version: 1
+  contentRoots:
+    - /Game/
+  disable:
+    - pcg
+    - foliage
+    - gas
+    - demo
+tasks: {}
+flows: {}

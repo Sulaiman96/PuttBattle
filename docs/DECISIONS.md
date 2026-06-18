@@ -277,3 +277,38 @@ the human deletes the `hooks` block.
 + `package-lock.json` (deleted), `ue-mcp.yml` (deleted), `.claude/skills/ue-mcp-*` (deleted),
 `.claude/settings.local.json`, `docs/repo-root-files/.mcp.json`, `CLAUDE.md` §11, `docs/CONVENTIONS.md` §11,
 `docs/MCP-SETUP.md`, `docs/USER-ACTIONS.md` (T0.3 / UA-4…8), `docs/pr/engine-58-upgrade.md`.
+
+### D-16 — `ue-mcp` restored and patched to compile on UE 5.8 (supersedes D-15)   (2026-06-18)
+**Context:** After D-15 removed ue-mcp, the built-in `unreal-mcp` (D-14) proved too narrow to actually use: a
+live `list_toolsets` exposed only `AgentSkillToolset` — no Blueprint or UMG widget editing, which is exactly
+what debugging the lobby (`WBP_Lobby`) and Phase 5+ content work require. A capability survey found no
+open-source 5.8 MCP with that breadth, and downgrading to 5.7 to use ue-mcp is unsafe (5.8-saved assets will
+not open in 5.7 — silent null references / data loss). The human chose to bring ue-mcp back and fix it forward.
+**Decision:** Restore the deleted ue-mcp from git (`git checkout 80b96ed~1 -- Plugins/UE_MCP_Bridge package.json
+package-lock.json ue-mcp.yml .claude/skills/ue-mcp-*`), patch it for 5.8, and re-wire it as the active MCP. The
+5.8 break surface (verified against the engine source — far smaller than feared) was exactly two classes:
+(a) **StructUtils relocation** — `InstancedStruct.h` moved into CoreUObject, so the include in
+`AnimationHandlers_StateMachine.cpp` was corrected and the now-dead `StructUtils` module dep (`Build.cs`) +
+plugin entry (`.uplugin`) removed; (b) **`FJsonObject::Values` keys** changed `FString`→`UE::FSharedString`,
+fixed at ~16 sites across 12 handler files with `const FString KeyStr(Pair.Key.ToView());` hoisted per
+`->Values` loop (only the `== TEXT(...)`, `FString`/`const FString&` assignment, and TArray<FString>/TPair<FString>
+insert sites genuinely break; raw `*Pair.Key` derefs still compile via `FSharedString::operator*()`).
+**Result:** the editor target builds clean on 5.8 (`Result: Succeeded`, `UnrealEditor-UE_MCP_Bridge.dll` linked);
+only C4996 deprecation warnings remain in vendored anim/gameplay/landscape/material handlers (tolerated, like
+the pre-existing notices in D-14). Re-enabled `UE_MCP_Bridge` + its `GameplayAbilities` hard-dependency in
+`PuttBattle.uproject` — re-introducing the D-6 GAS-enabled-but-unused exception and reversing D-15's GAS removal.
+`.mcp.json` repointed from `unreal-mcp` (HTTP) back to `ue-mcp` (`node node_modules/ue-mcp/dist/index.js`);
+`npm install` restores `node_modules`.
+**Why not the shortcut:** rejected `UE_JSONOBJECT_LEGACY_STRING_KEYS=1` (a one-line revert of the key type) — on a
+binary/installed engine it ABI-mismatches the precompiled `Json` module and risks silent memory corruption; it is
+only safe on a fully source-built engine.
+**Carried forward / open:** (1) runtime connection still to confirm — reopen the 5.8 editor + restart the Claude
+session, then `project get_status`. (2) ue-mcp's **license** is ambiguous (its GitHub terms suggest a commercial
+licence may be required for a shipping commercial game) — verify before release. (3) We now maintain a **fork** of
+the bridge; an upstream 5.8 release would supersede these patches. (4) The built-in `ModelContextProtocol` /
+`MCPClientToolset` plugins remain enabled in-editor but are not in `.mcp.json`. (5) `docs/MCP-SETUP.md`,
+`docs/CONVENTIONS.md` §11, and `docs/USER-ACTIONS.md` still describe the removed/native state and need a sweep.
+**Touches:** `PuttBattle.uproject`, `Plugins/UE_MCP_Bridge/**` (restored + patched), `package.json`,
+`package-lock.json`, `ue-mcp.yml`, `.claude/skills/ue-mcp-*` (restored), `.mcp.json`, `CLAUDE.md` §11,
+`docs/LEARNING.md` (pending), `docs/MCP-SETUP.md` (pending), `docs/CONVENTIONS.md` §11 (pending),
+`docs/USER-ACTIONS.md` (pending).

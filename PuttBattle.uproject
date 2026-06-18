@@ -43,11 +43,23 @@
 			"Enabled": true
 		},
 		{
+			"Name": "PCG",
+			"Enabled": true
+		},
+		{
+			"Name": "MCPClientToolset",
+			"Enabled": true
+		},
+		{
 			"Name": "ModelContextProtocol",
 			"Enabled": true
 		},
 		{
-			"Name": "PCG",
+			"Name": "GameplayAbilities",
+			"Enabled": true
+		},
+		{
+			"Name": "UE_MCP_Bridge",
 			"Enabled": true
 		}
 	]
