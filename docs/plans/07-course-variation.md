@@ -16,6 +16,12 @@
 **Create:** 9 slots × 2 variants graybox (18 layouts), each using surfaces/hazards/checkpoints meaningfully; variants of a slot share an outer footprint but change internals (cost amortisation). Include at least: one ramp-jump hole, one Ghost-Ball-bait wall maze, one checkpoint-gated long hole, one open putting-duel green.
 **Done when (agent):** full 9-hole matches run with no repeated layout; every variant passes the validator. Difficulty/fun review is human (UA-15); agent reworks flagged layouts afterwards.
 
+**Progress (2026-06-19):** 2/18 layouts built.
+- `H_03_CakeStand/V_A` — the *open putting-duel green* (Hole 3, PAR 3). See `docs/pr/phase-07-hole-03-cakestand.md`.
+- `H_04_SlushieChute/V_A` — the *ice corridor / dogleg* (Hole 4, PAR 3), built by duplicating H_03 and re-shaping its already-channeled meshes (PB_Floor/PB_Wall carry over; `physMaterialOverride` is writable → Ice). Fully functional in-session. Omits the decorative alcove + left rail to fit H_03's 3-floor/4-wall channeled budget. See `docs/pr/phase-07-hole-04-slushiechute.md`.
+
+Open course-wide: Lolly beacons sit on `ECC_WorldStatic` (§4) — the native editor MCP can't set component collision channels (only the old `execute_python` ue-mcp / editor can); finish all beacons to PB_Wall (or NoCollision) in one pass. T7.3 not complete (2 of 18 layouts).
+
 ## T7.4 — Variant reveal
 **Create:** HoleIntro presentation: camera glance pan along the hole (rig-to-rig sweep or authored spline per variant), hole name/number + par card, into the 3-2-1 countdown (D20).
 **Done when:** flow feels like SBG's hole reveal; total intro ≤ 7 s.

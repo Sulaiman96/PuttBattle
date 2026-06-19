@@ -66,6 +66,7 @@ A task is done only when:
 3. Multiplayer-touching work is verified in PIE with **3 clients + listen server** and net emulation (`p.NetEmulation` 100 ms latency / 1% loss) — remote balls smooth, no authority warnings.
 4. The acceptance line in the task's plan file passes.
 5. Any new tag/channel/asset path is reflected in this file or the plan file.
+6. Any new/changed C++ file, or change to a class's Blueprint/RPC/CVar surface, is reflected in `docs/CPP-GLOSSARY.md` (the C++ source map) — see its "Rules for future agents" section.
 
 ## 9. Git
 Git + LFS (`*.uasset, *.umap, *.png, *.fbx, *.wav` in `.gitattributes`). Never commit `Intermediate/`, `Saved/`, `DerivedDataCache/`, `Binaries/`. Branch per phase (`phase/03-multiplayer-core`); conventional commits (`feat:`, `fix:`, `test:`, `content:`). Binary assets: one author at a time — coordinate before touching shared maps. **Never `git push`** — the human reviews and pushes. **No commit trailers** (no `Co-Authored-By`); keep messages concise.

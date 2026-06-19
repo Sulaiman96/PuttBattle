@@ -51,15 +51,27 @@
 			"Enabled": true
 		},
 		{
-			"Name": "ModelContextProtocol",
-			"Enabled": true
-		},
-		{
 			"Name": "GameplayAbilities",
 			"Enabled": true
 		},
 		{
 			"Name": "UE_MCP_Bridge",
+			"Enabled": true
+		},
+		{
+			"Name": "ModelContextProtocol",
+			"Enabled": true
+		},
+		{
+			"Name": "EditorToolset",
+			"Enabled": true
+		},
+		{
+			"Name": "UMGToolSet",
+			"Enabled": true
+		},
+		{
+			"Name": "NiagaraToolsets",
 			"Enabled": true
 		}
 	]

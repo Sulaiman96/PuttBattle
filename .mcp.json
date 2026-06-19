@@ -1,5 +1,11 @@
 {
   "mcpServers": {
+    "unreal-mcp": {
+      "type": "http",
+      "url": "http://127.0.0.1:8000/mcp"
+    }
+  },
+  "_disabledServers": {
     "ue-mcp": {
       "command": "node",
       "args": ["node_modules/ue-mcp/dist/index.js", "PuttBattle.uproject"]
