@@ -31,6 +31,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Surface|Boost", meta = (ClampMin = "0.0"))
 	float BoostAcceleration = 5000.f;
 
+	/** Speed cap (cm/s) along the boost axis — stop pushing past this so the pad is
+	 *  self-bounding and tunable independent of the ball's MaxSpeed. <= 0 = no cap. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Surface|Boost", meta = (ClampMin = "0.0"))
+	float MaxBoostSpeed = 2500.f;
+
+	/** Trigger box half-extents (cm). Length along travel scales total impulse. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Surface|Boost")
+	FVector ZoneExtent = FVector(50.f, 50.f, 20.f);
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "PB|Surface|Boost")
 	TObjectPtr<UBoxComponent> BoostZone;
 

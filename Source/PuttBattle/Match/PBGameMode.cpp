@@ -7,12 +7,14 @@
 #include "Course/PBTeePad.h"
 #include "EngineUtils.h"
 #include "Match/PBPlayerController.h"
+#include "Match/PBPlayerState.h"
 #include "Shot/PBShotComponent.h"
 
 APBGameMode::APBGameMode()
 {
 	DefaultPawnClass = APBBallPawn::StaticClass();
 	PlayerControllerClass = APBPlayerController::StaticClass();
+	PlayerStateClass = APBPlayerState::StaticClass();
 }
 
 void APBGameMode::RestartHole(APlayerController* PC)
@@ -35,6 +37,12 @@ void APBGameMode::RestartHole(APlayerController* PC)
 	{
 		Shot->ResetForNewHole();
 	}
+
+	// Strokes/checkpoint/finish are authoritative per-hole state on the PlayerState.
+	if (APBPlayerState* PS = PC->GetPlayerState<APBPlayerState>())
+	{
+		PS->ResetForNewHole();
+	}
 }
 
 void APBGameMode::ActivateCheckpoint(APBBallPawn* Ball, APBCheckpointActor* Checkpoint)
@@ -43,10 +51,10 @@ void APBGameMode::ActivateCheckpoint(APBBallPawn* Ball, APBCheckpointActor* Chec
 	{
 		return;
 	}
-	const TObjectPtr<APBCheckpointActor>* Existing = LatestCheckpoint.Find(Ball);
-	if (!Existing || !*Existing || Checkpoint->CheckpointIndex >= (*Existing)->CheckpointIndex)
+	// Per-player, server-authoritative; SetCheckpointIndex keeps only the highest (D7).
+	if (APBPlayerState* PS = Ball->GetPlayerState<APBPlayerState>())
 	{
-		LatestCheckpoint.Add(Ball, Checkpoint);
+		PS->SetCheckpointIndex(Checkpoint->CheckpointIndex);
 	}
 }
 
@@ -57,10 +65,16 @@ void APBGameMode::RespawnAtCheckpoint(APBBallPawn* Ball)
 		return;
 	}
 
-	FTransform Respawn;
-	if (const TObjectPtr<APBCheckpointActor>* Cp = LatestCheckpoint.Find(Ball); Cp && *Cp)
+	int32 Index = INDEX_NONE;
+	if (const APBPlayerState* PS = Ball->GetPlayerState<APBPlayerState>())
 	{
-		Respawn = (*Cp)->GetRespawnTransform();
+		Index = PS->GetCheckpointIndex();
+	}
+
+	FTransform Respawn;
+	if (const APBCheckpointActor* Cp = FindCheckpointByIndex(Index))
+	{
+		Respawn = Cp->GetRespawnTransform();
 	}
 	else if (const APBTeePad* Tee = FindTeePad())
 	{
@@ -82,6 +96,25 @@ APBTeePad* APBGameMode::FindTeePad() const
 		for (TActorIterator<APBTeePad> It(World); It; ++It)
 		{
 			return *It;
+		}
+	}
+	return nullptr;
+}
+
+APBCheckpointActor* APBGameMode::FindCheckpointByIndex(int32 Index) const
+{
+	if (Index == INDEX_NONE)
+	{
+		return nullptr; // no checkpoint activated → caller falls back to the tee
+	}
+	if (const UWorld* World = GetWorld())
+	{
+		for (TActorIterator<APBCheckpointActor> It(World); It; ++It)
+		{
+			if (It->CheckpointIndex == Index)
+			{
+				return *It;
+			}
 		}
 	}
 	return nullptr;

@@ -5,13 +5,14 @@
 #include "Ball/PBBallPawn.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Match/PBGameMode.h"
 
 APBCupActor::APBCupActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
 	CatchZone = CreateDefaultSubobject<USphereComponent>(TEXT("CatchZone"));
-	CatchZone->InitSphereRadius(12.f);
+	CatchZone->InitSphereRadius(CatchRadius); // seed; BeginPlay re-applies the authored value
 	CatchZone->SetCollisionProfileName(TEXT("Trigger")); // QueryOnly, overlaps the ball
 	CatchZone->SetGenerateOverlapEvents(true);
 	RootComponent = CatchZone;
@@ -21,11 +22,23 @@ APBCupActor::APBCupActor()
 	CupMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision); // visual only
 }
 
+void APBCupActor::BeginPlay()
+{
+	Super::BeginPlay();
+	if (CatchZone)
+	{
+		CatchZone->SetSphereRadius(CatchRadius);
+	}
+}
+
 void APBCupActor::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	if (!CatchZone)
+	// Sinking is gameplay truth (ends the hole / scores) → authority only
+	// (CONVENTIONS §2). Standalone is authority, so behaviour is unchanged now; in
+	// Phase 3 this stops every client independently sinking the replicated ball.
+	if (!CatchZone || !HasAuthority())
 	{
 		return;
 	}
@@ -63,8 +76,15 @@ void APBCupActor::AcceptBall(APBBallPawn* Ball)
 	}
 	SunkBalls.Add(Ball);
 
-	// Settle the ball into the cup centre and stop it (presentation in Phase 1).
+	// Settle the ball into the cup centre and stop it.
 	Ball->TeleportToAndStop(GetActorLocation(), Ball->GetActorRotation());
+
+	// Server records the finish: order, server timestamp, spectate routing, and the
+	// all-finished hole-end check (APBMatchGameMode; base mode no-ops offline).
+	if (APBGameMode* GM = GetWorld() ? GetWorld()->GetAuthGameMode<APBGameMode>() : nullptr)
+	{
+		GM->NotifyBallSunk(Ball);
+	}
 
 	OnBallSunk.Broadcast(Ball);
 }

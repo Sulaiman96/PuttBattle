@@ -56,6 +56,15 @@ public:
 
 	// --- Feel constants (BP-tunable; mirrored by pb.Ball.* CVars) ----------
 
+	/**
+	 * Collision sphere radius in cm at ScaleMultiplier 1 — the ball's physical
+	 * size, core feel (roll character, what gaps it fits, cup-fit margin). Applied
+	 * at BeginPlay + on editor edit, not per-frame (SetSphereRadius rebuilds bounds
+	 * and is expensive). Change it on BP_BallPawn; no live CVar by design.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Ball|Feel", meta = (ClampMin = "0.1"))
+	float BaseRadiusCm = 6.f;
+
 	/** Base mass in kg at ScaleMultiplier 1. Mass scales with volume (∝ scale³). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Ball|Feel", meta = (ClampMin = "0.01"))
 	float BaseMassKg = 0.045f;
@@ -75,6 +84,26 @@ public:
 	/** Impulse delivered by a full-power shot before PowerMultiplier (cm/s·kg). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Ball|Feel", meta = (ClampMin = "0.0"))
 	float MaxImpulse = 90.f;
+
+	// --- Networking (replication cadence) ----------------------------------
+	// The ball replicates its physics state server→clients (Predictive
+	// Interpolation, set in BeginPlay). To keep bandwidth sane we replicate fast
+	// while the ball moves and slowly once it rests — the "dormancy-ish" toggle
+	// from plans/03 T3.1, done as a net-rate throttle rather than true dormancy
+	// (dormancy can freeze a ball mid-motion if a non-shot force — boost, gust —
+	// moves a dormant body). Server-side only.
+
+	/** Net update rate (Hz) while the ball is moving. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Ball|Net", meta = (ClampMin = "1.0"))
+	float MovingNetUpdateHz = 30.f;
+
+	/** Net update rate (Hz) once the ball is at rest. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Ball|Net", meta = (ClampMin = "0.5"))
+	float RestNetUpdateHz = 5.f;
+
+	/** Speed (cm/s) below which the ball counts as at-rest for the net-rate throttle. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Ball|Net", meta = (ClampMin = "0.0"))
+	float NetRestSpeedThreshold = 5.f;
 
 	// --- Attributes --------------------------------------------------------
 
@@ -119,4 +148,14 @@ protected:
 private:
 	/** Push the effective (CVar-overridden) damping onto the body instance. */
 	void ApplyPhysicsTuning();
+
+	/** Server-only: throttle the net update rate by whether the ball is moving. */
+	void UpdateNetUpdateRate();
+
+	/** Last damping values written to the body, so Tick only re-pushes on change. */
+	float LastLinearDampingApplied = -1.f;
+	float LastAngularDampingApplied = -1.f;
+
+	/** Last net update Hz written, so Tick only re-pushes the rate on change. */
+	float LastNetHzApplied = -1.f;
 };

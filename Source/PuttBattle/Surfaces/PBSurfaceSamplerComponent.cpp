@@ -23,11 +23,6 @@ UPBSurfaceSamplerComponent::UPBSurfaceSamplerComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 }
 
-void UPBSurfaceSamplerComponent::BeginPlay()
-{
-	Super::BeginPlay();
-}
-
 APBBallPawn* UPBSurfaceSamplerComponent::GetBall() const
 {
 	return Cast<APBBallPawn>(GetOwner());
@@ -94,10 +89,12 @@ void UPBSurfaceSamplerComponent::TickComponent(float DeltaTime, ELevelTick TickT
 	}
 	ActiveDefinition = Resolved;
 
-	// A global override applies everywhere; a contact surface only while grounded.
+	// Roll-drag only ever applies to a GROUNDED ball — an airborne ramp shot is
+	// untouched (D3), even during a global override (Ice Age). The override only
+	// changes WHICH surface governs the grounded ball, never whether a mid-air
+	// ball is braked.
 	const bool bGrounded = ContactDef != nullptr;
-	const bool bOverride = Resolved != nullptr && Resolved != ContactDef;
-	if (!Resolved || (!bGrounded && !bOverride))
+	if (!Resolved || !bGrounded)
 	{
 		return;
 	}

@@ -204,13 +204,14 @@ namespace MCPJsonProperty
 			{
 				for (const auto& Pair : (*SubObj)->Values)
 				{
-					FProperty* SubProp = StructProp->Struct->FindPropertyByName(FName(*Pair.Key));
-					if (!SubProp) { OutError = FString::Printf(TEXT("struct field '%s' not found"), *Pair.Key); return false; }
+					const FString KeyStr(Pair.Key.ToView());
+					FProperty* SubProp = StructProp->Struct->FindPropertyByName(FName(*KeyStr));
+					if (!SubProp) { OutError = FString::Printf(TEXT("struct field '%s' not found"), *KeyStr); return false; }
 					void* SubAddr = SubProp->ContainerPtrToValuePtr<void>(ValueAddr);
 					FString E;
 					if (!SetJsonOnProperty(SubProp, SubAddr, Pair.Value, E))
 					{
-						OutError = FString::Printf(TEXT("%s.%s: %s"), *StructProp->GetName(), *Pair.Key, *E); return false;
+						OutError = FString::Printf(TEXT("%s.%s: %s"), *StructProp->GetName(), *KeyStr, *E); return false;
 					}
 				}
 				return true;

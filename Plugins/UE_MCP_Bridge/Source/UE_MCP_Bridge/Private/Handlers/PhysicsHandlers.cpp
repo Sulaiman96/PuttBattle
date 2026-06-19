@@ -407,17 +407,18 @@ TSharedPtr<FJsonValue> FPhysicsHandlers::SetCollision(const TSharedPtr<FJsonObje
 	{
 		for (const auto& Pair : (*ResponsesObj)->Values)
 		{
+			const FString KeyStr(Pair.Key.ToView());
 			ECollisionChannel Ch;
-			if (!ResolveCollisionChannel(Pair.Key, Ch))
+			if (!ResolveCollisionChannel(KeyStr, Ch))
 			{
-				return MCPError(FString::Printf(TEXT("Unknown response channel '%s'"), *Pair.Key));
+				return MCPError(FString::Printf(TEXT("Unknown response channel '%s'"), *KeyStr));
 			}
 			FString RespStr;
 			Pair.Value->TryGetString(RespStr);
 			ECollisionResponse Resp;
 			if (!ResolveCollisionResponse(RespStr, Resp))
 			{
-				return MCPError(FString::Printf(TEXT("Unknown response '%s' for channel '%s'. Use Block, Overlap, Ignore."), *RespStr, *Pair.Key));
+				return MCPError(FString::Printf(TEXT("Unknown response '%s' for channel '%s'. Use Block, Overlap, Ignore."), *RespStr, *KeyStr));
 			}
 			ChannelResponses.Emplace(Ch, Resp);
 		}

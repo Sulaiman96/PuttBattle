@@ -80,7 +80,7 @@ Git + LFS (`*.uasset, *.umap, *.png, *.fbx, *.wav` in `.gitattributes`). Never c
 - Steps referencing a **UA-number** belong to the human (`docs/USER-ACTIONS.md`). Never perform, simulate, or mark them done yourself — surface them as a checklist and stop. Never ask the human to do work that isn't UA-shaped (accounts, secrets, GUI-only, second machine, other humans, feel judgment); that work is yours.
 
 ## 11. Editor MCP tools (ue-mcp)
-One MCP server, **`ue-mcp`**, is configured in `.mcp.json` (setup: `docs/MCP-SETUP.md`). It talks to the `UE_MCP_Bridge` plugin in the open editor and covers **both** level/actor work and Blueprint/material/asset/Niagara/UMG work. Tools are **category + action** shaped — e.g. `project(action="get_status")`, `level(action="get_outliner")`, `blueprint(...)`, `material(...)`, `asset(...)`. Consolidated from the former two-server (UnrealClaude + VibeUE) setup — see `docs/DECISIONS.md` D-6.
+One MCP server, **`ue-mcp`**, is configured in `.mcp.json` (setup: `docs/MCP-SETUP.md`). It talks to the `UE_MCP_Bridge` C++ plugin in the open editor and covers level/actor work plus Blueprint/material/asset/Niagara/UMG — **category + action** shaped tools, e.g. `project(action="get_status")`, `level(action="get_outliner")`, `blueprint(...)`, `material(...)`, `asset(...)`. The bridge was removed on the 5.8 upgrade (D-14/D-15), then **patched to compile on 5.8 and restored (D-16)** after Epic's built-in `ModelContextProtocol` proved too narrow (it only ever exposed `AgentSkillToolset` live — no Blueprint/UMG editing); the built-in plugin stays enabled in-editor but is not the active MCP. Connection: `node node_modules/ue-mcp/dist/index.js` (node-direct, never `npx` — it fails on Win+Node≥22); `npm install` restores it; reopen the editor + restart the Claude session to connect.
 
 Rules (non-negotiable):
 1. **Editor-touching task? Check first.** Call `project` → `get_status` at session start. If the editor is closed or the bridge is down, do NOT stall or improvise: complete the C++/data/asset-definition work, then list the editor-side steps for the human under a "Requires editor" heading.
@@ -90,8 +90,8 @@ Rules (non-negotiable):
 5. **Destructive operations** (delete asset/actor, overwrite a map) only when the current task explicitly names that thing. "Clean up" is never a deletion licence. Any map edit → re-run the variant validator (plans/07).
 6. **Verify visually**: after scene/Blueprint changes, capture the viewport (or read logs) and confirm the result rather than assuming success.
 7. **The repo is the source of truth**: MCP-created assets must land in the `Content/` layout per §1 and be committed; delete transient experiments before ending the session.
-8. The tool allow-list and any auto-approve are **human decisions** — never edit `.claude/settings.json` permissions as part of a task. Never enable **GAS/GameplayAbilities** via the bridge or the `ue-mcp` wizard (D22).
-9. For UE 5.7 API questions, prefer the engine source in `Engine/Source` (§10) over guessing — ue-mcp has no bundled 5.7 doc oracle.
+8. The tool allow-list and any auto-approve are **human decisions** — never edit `.claude/settings.json` permissions as part of a task. The bridge force-enables **GameplayAbilities** (its hard dependency, D-6) — that is the one tolerated GAS presence; never *author* GAS or enable it elsewhere (D22).
+9. For UE 5.8 API questions, prefer the engine source in `Engine/Source` (§10) over guessing.
 
 ## 12. Working with the human (read this — it shapes every interaction)
 The human is a **senior C#/.NET engineer** and a **novice at game development and Unreal Engine**, deliberately learning both through this project. Consequences:

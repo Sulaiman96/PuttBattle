@@ -105,13 +105,14 @@ namespace
 			{
 				for (const auto& Pair : (*SubObj)->Values)
 				{
-					FProperty* SubProp = StructProp->Struct->FindPropertyByName(FName(*Pair.Key));
-					if (!SubProp) { OutError = FString::Printf(TEXT("struct field '%s' not found"), *Pair.Key); return false; }
+					const FString KeyStr(Pair.Key.ToView());
+					FProperty* SubProp = StructProp->Struct->FindPropertyByName(FName(*KeyStr));
+					if (!SubProp) { OutError = FString::Printf(TEXT("struct field '%s' not found"), *KeyStr); return false; }
 					void* SubAddr = SubProp->ContainerPtrToValuePtr<void>(ValueAddr);
 					FString E;
 					if (!SetJsonOnProperty(SubProp, SubAddr, Pair.Value, E))
 					{
-						OutError = FString::Printf(TEXT("%s.%s: %s"), *StructProp->GetName(), *Pair.Key, *E); return false;
+						OutError = FString::Printf(TEXT("%s.%s: %s"), *StructProp->GetName(), *KeyStr, *E); return false;
 					}
 				}
 				return true;
@@ -997,7 +998,8 @@ TSharedPtr<FJsonValue> FPCGHandlers::SetPCGNodeSettings(const TSharedPtr<FJsonOb
 	{
 		for (const auto& Pair : (*SettingsObj)->Values)
 		{
-			PropertiesToSet.Add(TPair<FString, TSharedPtr<FJsonValue>>(Pair.Key, Pair.Value));
+			const FString KeyStr(Pair.Key.ToView());
+			PropertiesToSet.Add(TPair<FString, TSharedPtr<FJsonValue>>(KeyStr, Pair.Value));
 		}
 	}
 	else
@@ -1756,14 +1758,15 @@ TSharedPtr<FJsonValue> FPCGHandlers::ImportGraph(const TSharedPtr<FJsonObject>& 
 			DefaultSettings->Modify();
 			for (const auto& Pair : (*SettingsObj)->Values)
 			{
+				const FString KeyStr(Pair.Key.ToView());
 				FString SubErr;
-				if (SetDottedPropertyFromJson(DefaultSettings, Pair.Key, Pair.Value, SubErr))
+				if (SetDottedPropertyFromJson(DefaultSettings, KeyStr, Pair.Value, SubErr))
 				{
 					++SettingsApplied;
 				}
 				else
 				{
-					Warnings.Add(MakeShared<FJsonValueString>(FString::Printf(TEXT("node '%s' setting '%s': %s"), *LocalName, *Pair.Key, *SubErr)));
+					Warnings.Add(MakeShared<FJsonValueString>(FString::Printf(TEXT("node '%s' setting '%s': %s"), *LocalName, *KeyStr, *SubErr)));
 				}
 			}
 			DefaultSettings->PostEditChange();

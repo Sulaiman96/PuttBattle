@@ -2,14 +2,14 @@
 
 **Context:** Phase 0 complete. Everything here runs single-player; replication comes in Phase 3, but structs and authority boundaries are designed for it now.
 
-> **Status 2026-06-13 (branch `phase/01-02-ball-shot-surfaces`):** 🔶 **C++ COMPLETE & COMPILING**
-> (game target links clean). All systems for T1.1–T1.4 are implemented in C++; what remains is the
-> **editor content pass** (BP subclasses, input assets, graybox map, HUD widget) and **UA-9 feel
-> sign-off**. The editor pass needs the new game module loaded — rebuild + restart the editor (or
-> let an agent build with it closed), then the MCP asset work + PIE verification can run. The exact
-> editor steps are listed per task below and collected in `docs/pr/phase-01-ball-and-shot.md`.
+> **Status 2026-06-13 (branch `phase/01-02-ball-shot-surfaces`):** ✅ **C++ + CONTENT PASS COMPLETE**,
+> verified in PIE. T1.1–T1.4 implemented in C++; the editor content pass (BP subclasses `BP_BallPawn` /
+> `BP_PBPlayerController` / `BP_PBGameMode`, input assets `IMC_Putt` + `IA_*`, graybox map
+> `Maps/Holes/H_Test/V_A`, `WBP_HUD`) is done and committed to `Content/`. PIE confirms ball spawn/rest,
+> HUD on viewport, surface resolution. **Only UA-9 feel sign-off remains** (gates phase exit). Details +
+> evidence in `docs/pr/phase-01-ball-and-shot.md`.
 
-## T1.1 — APBBallPawn + attributes  🔶 C++ done
+## T1.1 — APBBallPawn + attributes  ✅ done (C++ + content 2026-06-13)
 > `Ball/PBBallPawn.{h,cpp}` + `Ball/PBBallAttributes.h`. Sphere root (PB_BallProfile, CCD, sim
 > physics), cosmetic mesh child (NoCollision), replicated `FPBBallAttributes` applied via
 > `ApplyAttributes()` (scale→SetWorldScale3D + density-preserving mass). Feel constants are
@@ -26,7 +26,7 @@
 - Register mirrored console variables for live in-PIE tuning: `pb.Ball.AngularDamping`, `pb.Ball.LinearDamping`, `pb.Ball.MaxImpulse` etc. (FAutoConsoleVariableRef pattern; CVar overrides the BP value when set, logs current values via `pb.Ball.Dump`).
 **Done when:** ball rolls, slows, and rests believably on a flat graybox plane; pushing scale to 1.6 via console test updates physics mass and visuals.
 
-## T1.2 — UPBShotComponent (flat shots)  🔶 C++ done
+## T1.2 — UPBShotComponent (flat shots)  ✅ done (C++ + content 2026-06-13)
 > `Shot/PBShotComponent.{h,cpp}` + `Shot/PBShotTypes.h` (`FPBShotRequest`, `EPBShotState`). State
 > machine Idle→Aiming→Rolling with at-rest (|v|<5cm/s for 0.5s) + 12s roll-timeout. `APBPlayerController`
 > (`Match/`) captures the LMB drag and streams it in; aim is camera-relative + flat (rotate screen
@@ -45,7 +45,7 @@
 - Route the final impulse through one function `ExecuteShot(FPBShotRequest)` — in Phase 3 this becomes the body of the server RPC. `FPBShotRequest { FVector2D Dir; float Power01; }` in `Shot/PBShotTypes.h`.
 **Done when:** a test hole is completable mouse-only; full power reachable with a 0.28-viewport drag; trackpad sanity-check passes; inverted/locked/hidden attribute flags all observably work via console toggles. Shot-feel constants (rest thresholds, drag fraction, max impulse) follow the same UPROPERTY + `pb.Shot.*` CVar pattern as T1.1 so UA-9 can be tuned live in one session.
 
-## T1.3 — Graybox hole, cup, HUD  🔶 C++ done
+## T1.3 — Graybox hole, cup, HUD  ✅ done (C++ + content 2026-06-13)
 > `Course/PBCupActor` (sphere catch zone; sinks iff overlap AND speed < SinkSpeedThreshold AND
 > ScaleMultiplier < 1.3 per DF6, re-checked each tick so a fast-then-settled ball still drops),
 > `Course/PBTeePad` (an `APlayerStart` with `GetSpawnTransform()`), `Match/PBGameMode` (DefaultPawn +
@@ -56,7 +56,13 @@
 **Create:** `Course/PBCupActor` (cylinder trigger: sink iff overlap AND speed < SinkSpeedThreshold AND `ScaleMultiplier < 1.3` per DF6), `Course/PBTeePad` (spawn transform), graybox map `Maps/Holes/H_Test/V_A` with ramps (verify D3: fast ramp shots go airborne and can leave the map), WBP_HUD: stroke counter, power bar during aim, "SUNK!" toast, restart key.
 **Done when:** spawn → shots counted → sink detected → restart works; a max-power ramp shot flies off the map edge.
 
-## T1.4 — Camera rigs ∥  🔶 C++ done
+## T1.4 — Camera rigs ∥  ✅ C++ done; ⚠️ player camera redesigned per **D-7** (2026-06-13)
+> The C++ fixed-rig system (`PBCameraRig` + `PBCameraSubsystem`, cycle with C) is implemented, BUT the
+> human redirected the **player** camera to 3 third-person follow presets (zoomed-in / mid / top-down)
+> switched with **1/2/3** — a spring-arm follow camera on `BP_BallPawn`, not the fixed rigs (DECISIONS
+> **D-7**). The graybox rigs were removed; the C++ rig classes remain (unused). README D4, the hole-intro
+> glance (D20), and the spectator rig-cycling (Phase 8) still reference fixed rigs and need reconciling
+> when those phases land.
 > `Camera/PBCameraRig` (CameraComponent actor, `Priority`, default ~52° pitch / FOV 35) +
 > `Camera/PBCameraSubsystem` (WorldSubsystem: collects rigs sorted by priority, `CycleCamera()` blends
 > ViewTarget 0.3s, client-only). The controller binds `IA_CycleCamera` → `CycleCamera`. Aim stays

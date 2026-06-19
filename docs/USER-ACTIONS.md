@@ -11,16 +11,17 @@ Written for someone who has **never opened Unreal Engine**. When an agent pauses
 - [ ] **UA-2 · Create the blank project** (5 min): Launcher → Library → Launch 5.7 → Project Browser opens → **Games → Blank**. In the right panel: switch the toggle from Blueprint to **C++**, **untick Starter Content**, raytracing off; pick your repo folder as the location, name it `PuttBattle`, Create. First launch then compiles shaders for several minutes — a progress bar bottom-right; that's normal, let it finish. *Why you: the wizard is more reliable than a hand-scaffold; one-time.* The agent verifies and configures everything after.
 - [ ] **UA-3 · (Optional) Create the private GitHub repo** and authenticate `gh` so agents can push. *Why you: account auth.*
 
-### T0.3 — MCP integration (~15 min; agent does the repo plumbing) — **now `ue-mcp`** (consolidated 2026-06-13, DECISIONS D-6)
-> The original UA-4…7 (VibeUE API key, two-plugin GUI checks) are **obsolete** — we dropped UnrealClaude +
-> VibeUE for the single `ue-mcp` server. They're kept struck-through below for history; do the *ue-mcp*
-> versions instead. The agent has already deleted the old plugins and rewritten the config/docs.
-- [ ] **UA-4 · Run the installer** (editor closed): from the repo root run **`npx ue-mcp init`**. It auto-detects `PuttBattle.uproject`, asks which tool categories to enable, deploys `Plugins/UE_MCP_Bridge/`, and configures Claude Code. *Why you: interactive wizard, no unattended mode.*
-- [ ] **UA-5 · Decline GAS in the wizard** — when it lists tool categories / plugins to enable, **do NOT enable GameplayAbilities / GAS** (D22). Enhanced Input + Niagara are already on; leave the rest at defaults. *Why you: a deliberate design constraint the wizard can't know.*
-- [ ] **UA-6 · Compile the bridge** — open the editor; when it asks **"compile UE_MCP_Bridge?"** click **Yes** (~30–60 s) and let it finish loading. *Why you: editor GUI prompt.*
-- [ ] **UA-7 · First run approval** — launch `claude` from the repo root, approve the `ue-mcp` MCP server when prompted. *Why you: the approval prompt is the security boundary.*
-- [ ] **UA-8 · Watch the verification run** (10 min): the agent drives the MCP-SETUP checklist; you confirm a permission prompt appears on the first editor-mutating action (e.g. placing then deleting a cube). *Why you: you're testing the guardrails that protect you from agents.*
-- <s>UA-4 (old) · Get the free VibeUE API key · UA-5 · install key + `VIBEUE_API_KEY` · UA-6 · enable Unreal Claude + VibeUE plugins / auto-approve OFF · UA-7 · approve two servers</s> — superseded by the ue-mcp steps above.
+### T0.3 — MCP integration (~5 min) — **ue-mcp** (patched for UE 5.8, DECISIONS D-16)
+> `ue-mcp` was removed on the 5.8 upgrade (D-14/D-15), then **patched to compile on 5.8 and restored** (D-16)
+> because Epic's built-in `unreal-mcp` was too narrow (no Blueprint/UMG editing). The bridge is **vendored +
+> committed** (`Plugins/UE_MCP_Bridge/`), so there is **no `npx ue-mcp init` wizard** — the agent did the repo
+> plumbing (`.uproject` enable, `.mcp.json`, the 5.8 source patch, the build). Old VibeUE/UnrealClaude steps
+> stay struck through for history. Setup detail: `docs/MCP-SETUP.md`.
+- [ ] **UA-6 · (fresh clone only) run `npm install`** from the repo root to restore `node_modules/ue-mcp` (the Node server; git-ignored). Skip if it's already present. *Why you: one terminal command; the bridge C++ is committed and builds with the editor target.*
+- [ ] **UA-7 · Open the UE 5.8 editor**, let `UE_MCP_Bridge` load (Output Log shows its WebSocket server on `:9877`); if it ever prompts to compile the bridge, click **Yes**. Then **restart the Claude Code session** so it reloads `.mcp.json`, and run `/mcp` → confirm **`ue-mcp` connected**. *Why you: editor GUI + the session must reload config; this connection is the go/no-go.*
+- [ ] **UA-8 · Watch a verification call** (5 min): ask the agent to call **`project get_status`**, then a read like **`level get_outliner`**; confirm a permission prompt appears on the first editor-*mutating* action (e.g. place then delete a cube). *Why you: you're testing the guardrails that protect you from agents.*
+- <s>UA-4 · `npx ue-mcp init` wizard · UA-5 · decline GAS in the wizard · UA-6 (old) · compile `UE_MCP_Bridge` · UA-7 (old) · approve the `ue-mcp` server</s> — superseded: the bridge is vendored + patched (D-16), restored from git, not re-initialised.
+- <s>UA-4 (older) · VibeUE API key · UA-5 · install key + `VIBEUE_API_KEY` · UA-6 · enable Unreal Claude + VibeUE plugins / auto-approve OFF · UA-7 · approve two servers</s> — superseded first by ue-mcp.
 
 ## Phase 1 — Ball & shot
 - [ ] **UA-9 · Feel sign-off** (15 min): play the graybox hole and answer three questions: (1) does the ball slow like it has weight, or like it's on glass / in syrup? (2) can you reliably make a gentle short putt? (3) does full power feel *powerful*? Test on both mouse and trackpad. Useful vocabulary: floaty, heavy, twitchy at low power, mushy, slidey. Describe sensations — the agent translates them into damping/curve changes, and will give you `pb.*` console commands (press the backtick ` key in-game to open the console) so you can tweak values live mid-session instead of round-tripping. *Why you: agents verify math, not feel. Gates phase exit.*
@@ -29,8 +30,11 @@ Written for someone who has **never opened Unreal Engine**. When an agent pauses
 - [ ] **UA-10 · Surface feel sign-off** (10 min): have the agent teleport your ball between unlabelled test strips; call out which surface you think you're on from feel alone. Ice/sand/boost/sticky should be unmistakable. *Gates phase exit.*
 
 ## Phase 3 — Multiplayer
-- [ ] **UA-11 · Steam client** installed and logged in on the dev machine (dev AppId 480 needs it running).
-- [ ] **UA-12 · Two-machine Steam test** (30 min): second PC or a friend with the build, one 3-hole match over a real network. Inviting: with the game running, **Shift+Tab** opens the Steam overlay → Friends → right-click → *Invite to Game* (works on the dev AppId as long as both machines run the build). *Why you: agents can't operate a second Steam account on a second network.*
+> **Step-by-step test guide: `docs/pr/phase-03-testing.md`** — covers the no-Steam local PIE match test
+> (Test A, do this first), the Steam two-instance flow (Test B = UA-12), packaging, and a per-feature
+> verification checklist. The items below are the gates; the guide is the how-to.
+- [ ] **UA-11 · Steam client** installed and logged in on the dev machine (dev AppId 480 needs it running). Only required for the Steam test (Test B); the local PIE match test (Test A) needs no Steam.
+- [ ] **UA-12 · Two-machine Steam test** (30 min): second PC or a friend with the build, one 3-hole match over a real network. Inviting: with the game running, **Shift+Tab** opens the Steam overlay → Friends → right-click → *Invite to Game* (works on the dev AppId as long as both machines run the build). Full steps + what to verify in `docs/pr/phase-03-testing.md` (Test B). *Why you: agents can't operate a second Steam account on a second network.*
 - [ ] **UA-13 · First playtest** (one evening): recruit 2 friends, play graybox matches, collect "what felt bad" notes. Agent prepares the build and a feedback sheet. *This is the project's most important quality gate — if rolling a ball isn't fun in graybox, stop and tune before Phase 4.*
 
 ## Phase 6 — Powerup balance

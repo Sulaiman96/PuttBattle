@@ -448,7 +448,8 @@ TSharedPtr<FJsonValue> FGameplayHandlers::AddSmartObjectSlotBehavior(const TShar
 	{
 		for (const auto& Pair : (*InstObj)->Values)
 		{
-			FProperty* P = BehaviorAsset->GetClass()->FindPropertyByName(FName(*Pair.Key));
+			const FString KeyStr(Pair.Key.ToView());
+			FProperty* P = BehaviorAsset->GetClass()->FindPropertyByName(FName(*KeyStr));
 			if (!P) continue;
 			FString E;
 			MCPJsonProperty::SetJsonOnProperty(P, P->ContainerPtrToValuePtr<void>(BehaviorAsset), Pair.Value, E);
@@ -1669,12 +1670,13 @@ TSharedPtr<FJsonValue> FGameplayHandlers::ConfigureAiPerceptionSense(const TShar
 	{
 		for (const auto& KV : (*PropsObj)->Values)
 		{
-			FProperty* P = Cfg->GetClass()->FindPropertyByName(FName(*KV.Key));
+			const FString KeyStr(KV.Key.ToView());
+			FProperty* P = Cfg->GetClass()->FindPropertyByName(FName(*KeyStr));
 			if (!P) continue;
 			FString PErr;
 			if (MCPJsonProperty::SetJsonOnProperty(P, P->ContainerPtrToValuePtr<void>(Cfg), KV.Value, PErr))
 			{
-				AppliedProps.Add(KV.Key);
+				AppliedProps.Add(KeyStr);
 			}
 		}
 	}

@@ -59,9 +59,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Surface|Feel", meta = (ClampMin = "0.0"))
 	float MinDragSpeed = 2.f;
 
-protected:
-	virtual void BeginPlay() override;
-
 private:
 	APBBallPawn* GetBall() const;
 

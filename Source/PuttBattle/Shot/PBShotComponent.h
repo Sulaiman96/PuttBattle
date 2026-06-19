@@ -11,7 +11,6 @@ class APBBallPawn;
 class APlayerController;
 class UCurveFloat;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FPBStrokeCountChanged, int32, NewStrokeCount);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FPBAimUpdated, float, Power01, bool, bIndicatorHidden);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FPBAimEnded);
 
@@ -56,20 +55,33 @@ public:
 	UFUNCTION(BlueprintPure, Category = "PB|Shot")
 	EPBShotState GetShotState() const { return ShotState; }
 
-	UFUNCTION(BlueprintPure, Category = "PB|Shot")
-	int32 GetStrokeCount() const { return StrokeCount; }
-
-	/** Reset strokes + state (hole restart). */
+	/** Reset the local shot state machine (hole restart). Strokes live on the
+	 *  PlayerState now and are reset there by the GameMode. */
 	UFUNCTION(BlueprintCallable, Category = "PB|Shot")
 	void ResetForNewHole();
 
-	/** The one funnel every shot passes through (future server RPC body). */
+	/**
+	 * Client→server shot request (CONVENTIONS §2). The release of a drag routes
+	 * here on a remote client; the listen-server host runs the same server path
+	 * directly. WithValidation rejects structurally-invalid payloads (cheat
+	 * guard); state gates (phase, at-rest, lock, finished) are re-checked in the
+	 * implementation and silently ignored so honest latency never kicks a client.
+	 */
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_RequestShot(const FPBShotRequest& Request);
+
+	/** The one funnel every accepted shot passes through (server-side): applies the
+	 *  flat impulse and adds a stroke on the PlayerState. */
 	void ExecuteShot(const FPBShotRequest& Request);
 
-	// --- HUD hooks ---------------------------------------------------------
+	/**
+	 * Pure cheat-guard predicate for an incoming shot payload (finite dir/power,
+	 * power within [0,1] + FP slack). Shared by Server_RequestShot_Validate and the
+	 * automation test so the exploit rejection is regression-checked (T3.1).
+	 */
+	static bool IsShotRequestStructurallyValid(const FPBShotRequest& Request);
 
-	UPROPERTY(BlueprintAssignable, Category = "PB|Shot")
-	FPBStrokeCountChanged OnStrokeCountChanged;
+	// --- HUD hooks ---------------------------------------------------------
 
 	UPROPERTY(BlueprintAssignable, Category = "PB|Shot")
 	FPBAimUpdated OnAimUpdated;
@@ -103,9 +115,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Shot|Feel", meta = (ClampMin = "0.0"))
 	float RollTimeout = 12.f;
 
-protected:
-	virtual void BeginPlay() override;
+	/** After firing, how long to wait for the ball to start moving before giving up
+	 *  the Rolling lock (covers RTT to the server + a rejected/zero-power shot, so a
+	 *  remote client can't double-fire while the first shot is still in transit). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Shot|Feel", meta = (ClampMin = "0.0"))
+	float ShotConfirmTimeout = 1.5f;
 
+	/** Aim-preview length (cm) at full power — the visual the player calibrates against. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Shot|Feel", meta = (ClampMin = "0.0"))
+	float PreviewLengthAtFullPower = 600.f;
+
+	/** Shortest visible aim-preview length (cm) so a tiny tap still shows a line. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Shot|Feel", meta = (ClampMin = "0.0"))
+	float PreviewMinLength = 50.f;
+
+protected:
 	/** BP preview hook (Niagara / spline mesh). Start→End along aim, length ∝ power. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "PB|Shot")
 	void OnUpdateAimPreview(const FVector& Start, const FVector& End, float Power01);
@@ -113,9 +137,20 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "PB|Shot")
 	void OnHideAimPreview();
 
+	/** Owning-client cosmetic feedback fired the instant the player releases (swing
+	 *  SFX/VFX), independent of the server round-trip (T3.1 local-feel). */
+	UFUNCTION(BlueprintImplementableEvent, Category = "PB|Shot")
+	void OnLocalShotFired(float Power01);
+
 private:
 	APBBallPawn* GetBall() const;
 	APlayerController* GetOwningPC() const;
+
+	/** Server-side: state gates a shot must pass (phase, at-rest, lock, finished). */
+	bool ServerShotStateAllows() const;
+
+	/** Server-side: validate state then run ExecuteShot + enter the rolling lock. */
+	void TryExecuteServerShot(const FPBShotRequest& Request);
 
 	/** Rebuild CachedRequest + preview endpoint from the current drag. */
 	void RecomputeAim();
@@ -124,10 +159,6 @@ private:
 
 	UPROPERTY(Transient)
 	EPBShotState ShotState = EPBShotState::Idle;
-
-	/** Strokes this hole. Phase 1 lives here; moves to PlayerState in Phase 3/4. */
-	UPROPERTY(Transient)
-	int32 StrokeCount = 0;
 
 	FVector2D PressScreenPos = FVector2D::ZeroVector;
 	FVector2D CurrentScreenPos = FVector2D::ZeroVector;
@@ -140,4 +171,8 @@ private:
 	float AtRestTimer = 0.f;
 	/** Seconds since the current shot was fired (RollTimeout guard). */
 	float RollTimer = 0.f;
+
+	/** True between firing and observing the ball actually move — holds the Rolling
+	 *  lock so a queued shot can't be double-fired before it replicates back. */
+	bool bWaitingForShotMotion = false;
 };

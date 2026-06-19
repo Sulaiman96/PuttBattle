@@ -172,18 +172,19 @@ TSharedPtr<FJsonValue> FGasHandlers::ApplyEffect(const TSharedPtr<FJsonObject>& 
 	{
 		for (const auto& KV : (*SetByCaller)->Values)
 		{
+			const FString KeyStr(KV.Key.ToView());
 			double Mag = 0.0;
 			if (!KV.Value.IsValid() || !KV.Value->TryGetNumber(Mag)) continue;
-			const FGameplayTag Tag = FGameplayTag::RequestGameplayTag(FName(*KV.Key), /*ErrorIfNotFound*/ false);
+			const FGameplayTag Tag = FGameplayTag::RequestGameplayTag(FName(*KeyStr), /*ErrorIfNotFound*/ false);
 			if (Tag.IsValid())
 			{
 				SpecHandle.Data->SetSetByCallerMagnitude(Tag, static_cast<float>(Mag));
 			}
 			else
 			{
-				SpecHandle.Data->SetSetByCallerMagnitude(FName(*KV.Key), static_cast<float>(Mag));
+				SpecHandle.Data->SetSetByCallerMagnitude(FName(*KeyStr), static_cast<float>(Mag));
 			}
-			AppliedKeys.Add(KV.Key);
+			AppliedKeys.Add(KeyStr);
 		}
 	}
 

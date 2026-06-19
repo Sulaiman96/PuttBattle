@@ -223,16 +223,18 @@ TSharedPtr<FJsonValue> FLevelHandlers::SetVolumeProperties(const TSharedPtr<FJso
 	TArray<TPair<FString, TSharedPtr<FJsonValue>>> Pairs;
 	for (auto& Pair : Params->Values)
 	{
-		if (Pair.Key == TEXT("actorLabel") || Pair.Key == TEXT("action") || Pair.Key == TEXT("properties"))
+		const FString KeyStr(Pair.Key.ToView());
+		if (KeyStr == TEXT("actorLabel") || KeyStr == TEXT("action") || KeyStr == TEXT("properties"))
 			continue;
-		Pairs.Emplace(Pair.Key, Pair.Value);
+		Pairs.Emplace(KeyStr, Pair.Value);
 	}
 	const TSharedPtr<FJsonObject>* PropsObj = nullptr;
 	if (Params->TryGetObjectField(TEXT("properties"), PropsObj) && PropsObj && (*PropsObj).IsValid())
 	{
 		for (auto& Pair : (*PropsObj)->Values)
 		{
-			Pairs.Emplace(Pair.Key, Pair.Value);
+			const FString KeyStr(Pair.Key.ToView());
+			Pairs.Emplace(KeyStr, Pair.Value);
 		}
 	}
 	for (auto& Pair : Pairs)
@@ -344,7 +346,8 @@ TSharedPtr<FJsonValue> FLevelHandlers::SetVolumeProperties(const TSharedPtr<FJso
 		Payload->SetStringField(TEXT("actorLabel"), ActorLabel);
 		for (auto& Prev : PreviousValues->Values)
 		{
-			Payload->SetField(Prev.Key, Prev.Value);
+			const FString KeyStr(Prev.Key.ToView());
+			Payload->SetField(KeyStr, Prev.Value);
 		}
 		MCPSetRollback(Result, TEXT("set_volume_properties"), Payload);
 	}

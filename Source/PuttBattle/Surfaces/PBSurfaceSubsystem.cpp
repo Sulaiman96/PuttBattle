@@ -12,7 +12,7 @@ int32 UPBSurfaceSubsystem::PushGlobalOverride(UPBSurfaceDefinition* Definition, 
 		return INDEX_NONE;
 	}
 
-	FOverrideEntry Entry;
+	FPBSurfaceOverride Entry;
 	Entry.Id = NextOverrideId++;
 	Entry.Definition = Definition;
 	const int32 Index = Overrides.Add(MoveTemp(Entry));
@@ -45,7 +45,7 @@ void UPBSurfaceSubsystem::PopGlobalOverride()
 void UPBSurfaceSubsystem::RemoveOverride(int32 OverrideId)
 {
 	const int32 Index = Overrides.IndexOfByPredicate(
-		[OverrideId](const FOverrideEntry& E) { return E.Id == OverrideId; });
+		[OverrideId](const FPBSurfaceOverride& E) { return E.Id == OverrideId; });
 	if (Index == INDEX_NONE)
 	{
 		return;

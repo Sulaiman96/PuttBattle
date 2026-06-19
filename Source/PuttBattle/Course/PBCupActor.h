@@ -43,6 +43,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Course", meta = (ClampMin = "1.0"))
 	float BalloonedMaxScale = 1.3f;
 
+	/** Catch-zone radius (cm) — how close to centre a ball must pass to drop. The
+	 *  third cup-difficulty knob beside speed + scale. Applied at BeginPlay. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PB|Course", meta = (ClampMin = "1.0"))
+	float CatchRadius = 12.f;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "PB|Course")
 	TObjectPtr<USphereComponent> CatchZone;
 
@@ -50,6 +55,8 @@ public:
 	TObjectPtr<UStaticMeshComponent> CupMesh;
 
 protected:
+	virtual void BeginPlay() override;
+
 	/** Has this ball already been accepted (avoid double-broadcast). */
 	bool IsBallSunk(const APBBallPawn* Ball) const;
 

@@ -1137,10 +1137,11 @@ TSharedPtr<FJsonValue> FAssetHandlers::SetDataTableRow(const TSharedPtr<FJsonObj
 	bool bOk = true;
 	for (const auto& Pair : (*RowObj)->Values)
 	{
+		const FString KeyStr(Pair.Key.ToView());
 		FProperty* FieldProp = nullptr;
 		for (TFieldIterator<FProperty> It(RowStruct); It; ++It)
 		{
-			if (It->GetName() == Pair.Key || It->GetAuthoredName() == Pair.Key)
+			if (It->GetName() == KeyStr || It->GetAuthoredName() == KeyStr)
 			{
 				FieldProp = *It;
 				break;
@@ -1148,7 +1149,7 @@ TSharedPtr<FJsonValue> FAssetHandlers::SetDataTableRow(const TSharedPtr<FJsonObj
 		}
 		if (!FieldProp)
 		{
-			SetErr = FString::Printf(TEXT("row struct '%s' has no field '%s'"), *RowStruct->GetName(), *Pair.Key);
+			SetErr = FString::Printf(TEXT("row struct '%s' has no field '%s'"), *RowStruct->GetName(), *KeyStr);
 			bOk = false;
 			break;
 		}
@@ -1156,7 +1157,7 @@ TSharedPtr<FJsonValue> FAssetHandlers::SetDataTableRow(const TSharedPtr<FJsonObj
 		FString E;
 		if (!MCPJsonProperty::SetJsonOnProperty(FieldProp, FieldAddr, Pair.Value, E))
 		{
-			SetErr = FString::Printf(TEXT("%s: %s"), *Pair.Key, *E);
+			SetErr = FString::Printf(TEXT("%s: %s"), *KeyStr, *E);
 			bOk = false;
 			break;
 		}
@@ -1402,14 +1403,15 @@ TSharedPtr<FJsonValue> FAssetHandlers::FillDataTableFromJson(const TSharedPtr<FJ
 	int32 Upserted = 0;
 	for (const auto& RowPair : (*RowsObj)->Values)
 	{
+		const FString KeyStr(RowPair.Key.ToView());
 		const TSharedPtr<FJsonObject>* FieldsObj = nullptr;
 		if (!RowPair.Value->TryGetObject(FieldsObj) || !FieldsObj || !(*FieldsObj).IsValid())
 		{
-			return MCPError(FString::Printf(TEXT("Row '%s' is not an object of fields"), *RowPair.Key));
+			return MCPError(FString::Printf(TEXT("Row '%s' is not an object of fields"), *KeyStr));
 		}
 		TSharedPtr<FJsonObject> Delegated = MakeShared<FJsonObject>();
 		Delegated->SetStringField(TEXT("assetPath"), AssetPath);
-		Delegated->SetStringField(TEXT("rowName"), RowPair.Key);
+		Delegated->SetStringField(TEXT("rowName"), KeyStr);
 		Delegated->SetObjectField(TEXT("row"), *FieldsObj);
 		TSharedPtr<FJsonValue> RowResult = SetDataTableRow(Delegated);
 		// SetDataTableRow returns an MCP error object on failure; surface it.
