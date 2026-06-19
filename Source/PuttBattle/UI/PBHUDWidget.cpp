@@ -62,6 +62,14 @@ void UPBHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 	{
 		BindToPlayerState();
 	}
+
+	// Belt-and-suspenders: push the authoritative stroke count every frame so the
+	// counter stays correct even if the delegate bind was missed by possession/owner
+	// timing. Cheap — one text set on a single label.
+	if (const APBPlayerState* PS = GetLocalPlayerState())
+	{
+		OnStrokesChanged(PS->GetStrokes());
+	}
 }
 
 void UPBHUDWidget::HandlePossessedPawnChanged(APawn* OldPawn, APawn* NewPawn)
@@ -143,15 +151,23 @@ void UPBHUDWidget::HandleBallSunk(APBBallPawn* Ball)
 
 APBBallPawn* UPBHUDWidget::GetLocalBall() const
 {
-	if (const APlayerController* PC = GetOwningPlayer())
+	// Prefer the owning player, fall back to the first local controller: the HUD's
+	// owning-player context can be unset depending on how it was created, which would
+	// otherwise null the ball lookup (no sunk toast). Single-player: first PC is right.
+	const APlayerController* PC = GetOwningPlayer();
+	if (!PC && GetWorld())
 	{
-		return Cast<APBBallPawn>(PC->GetPawn());
+		PC = GetWorld()->GetFirstPlayerController();
 	}
-	return nullptr;
+	return PC ? Cast<APBBallPawn>(PC->GetPawn()) : nullptr;
 }
 
 APBPlayerState* UPBHUDWidget::GetLocalPlayerState() const
 {
 	const APlayerController* PC = GetOwningPlayer();
+	if (!PC && GetWorld())
+	{
+		PC = GetWorld()->GetFirstPlayerController(); // same owner fallback as GetLocalBall
+	}
 	return PC ? PC->GetPlayerState<APBPlayerState>() : nullptr;
 }
