@@ -66,8 +66,9 @@ namespace PBBallCVars
 		}
 		const FPBBallAttributes& A = Ball->Attributes;
 		UE_LOG(LogTemp, Display,
-			TEXT("[pb.Ball.Dump] speed=%.1f planar=%.1f | LinDamp=%.3f AngDamp=%.3f MaxImpulse=%.1f MaxSpeed=%.0f | Power×%.2f Scale×%.2f invert=%d lock=%d hideAim=%d shield=%d ghost=%d anchor=%d"),
+			TEXT("[pb.Ball.Dump] speed=%.1f planar=%.1f | BaseMass=%.3f bodyMass=%.3f LinDamp=%.3f AngDamp=%.3f MaxImpulse=%.1f MaxSpeed=%.0f | Power×%.2f Scale×%.2f invert=%d lock=%d hideAim=%d shield=%d ghost=%d anchor=%d"),
 			Ball->GetSpeed(), Ball->GetPlanarSpeed(),
+			Ball->BaseMassKg, Ball->CollisionSphere ? Ball->CollisionSphere->GetMass() : 0.f,
 			Ball->LinearDamping, Ball->AngularDamping, Ball->GetEffectiveMaxImpulse(), Ball->MaxSpeed,
 			A.PowerMultiplier, A.ScaleMultiplier, A.bAimInverted, A.bShotLocked,
 			A.bAimIndicatorHidden, A.bShielded, A.bGhostShotArmed, A.bAnchorArmed);
@@ -85,6 +86,22 @@ namespace PBBallCVars
 		A.ScaleMultiplier = FCString::Atof(*Args[0]);
 		Ball->SetAttributes(A);
 		UE_LOG(LogTemp, Display, TEXT("[pb.Ball.SetScale] ScaleMultiplier=%.2f"), A.ScaleMultiplier);
+	}
+
+	static void SetMass(const TArray<FString>& Args, UWorld* World)
+	{
+		APBBallPawn* Ball = FindLocalBall(World);
+		if (!Ball || Args.Num() < 1)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[pb.Ball.SetMass] usage: pb.Ball.SetMass <kg>  (e.g. 0.10)"));
+			return;
+		}
+		// Mutate the authored base mass and re-apply through the one mass path
+		// (ApplyAttributes, §3) so the scale-cubed override updates live in PIE.
+		Ball->BaseMassKg = FMath::Max(FCString::Atof(*Args[0]), 0.001f);
+		Ball->ApplyAttributes();
+		UE_LOG(LogTemp, Display, TEXT("[pb.Ball.SetMass] BaseMassKg=%.3f (body mass now %.3f kg)"),
+			Ball->BaseMassKg, Ball->CollisionSphere ? Ball->CollisionSphere->GetMass() : 0.f);
 	}
 
 	static void SetFlag(const TArray<FString>& Args, UWorld* World, const TCHAR* Name)
@@ -110,6 +127,10 @@ namespace PBBallCVars
 	static FAutoConsoleCommandWithWorldAndArgs CmdSetScale(
 		TEXT("pb.Ball.SetScale"), TEXT("Set the local ball's ScaleMultiplier (mass + visuals update)."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&SetScale));
+
+	static FAutoConsoleCommandWithWorldAndArgs CmdSetMass(
+		TEXT("pb.Ball.SetMass"), TEXT("Set the local ball's BaseMassKg live (heavier = shots fly less). e.g. pb.Ball.SetMass 0.10"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&SetMass));
 
 	static FAutoConsoleCommandWithWorldAndArgs CmdInvert(
 		TEXT("pb.Ball.Invert"), TEXT("Toggle bAimInverted on the local ball (Reverse test)."),
