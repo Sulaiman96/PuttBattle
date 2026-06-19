@@ -51,14 +51,6 @@
 			"Enabled": true
 		},
 		{
-			"Name": "GameplayAbilities",
-			"Enabled": true
-		},
-		{
-			"Name": "UE_MCP_Bridge",
-			"Enabled": true
-		},
-		{
 			"Name": "ModelContextProtocol",
 			"Enabled": true
 		},

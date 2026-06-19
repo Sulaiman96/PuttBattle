@@ -1,76 +1,78 @@
-# MCP Setup — Claude Code ↔ Unreal Editor (ue-mcp)
+# MCP Setup — Claude Code ↔ Unreal Editor (native `unreal-mcp`)
 
 This wires **one** editor MCP server into the repo so every Claude Code session can drive the Unreal editor.
 Agent-facing rules: `CLAUDE.md` §11.
 
-| Server | Package / plugin | What it's for |
+| Server | Plugin | What it's for |
 |---|---|---|
-| `ue-mcp` | [db-lyon/ue-mcp](https://github.com/db-lyon/ue-mcp) (npm `ue-mcp`) + the vendored `UE_MCP_Bridge` C++ plugin | Everything: levels/actors, Blueprints, UMG, materials, Niagara, assets, PIE, console — ~20 category tools / 500+ actions, one server |
+| `unreal-mcp` | Epic's built-in **`ModelContextProtocol`** server + the `*Toolset` plugins (`EditorToolset`, `UMGToolSet`, `NiagaraToolsets`) | Everything: levels/actors, objects/properties, primitives, assets, Blueprints, materials, Niagara, UMG, PIE, viewport capture — one HTTP server |
 
-> **UE 5.8 note (DECISIONS D-16).** Upstream ue-mcp targets UE **5.4–5.7** and does **not** compile on 5.8. This
-> repo carries a **vendored fork** of `UE_MCP_Bridge` **patched to build on 5.8** (the `InstancedStruct`/StructUtils
-> relocation + the `FJsonObject` `FSharedString`-key change — see D-16). We briefly switched to Epic's built-in
-> `ModelContextProtocol` (D-14/D-15), but it was too narrow (no Blueprint/UMG editing), so ue-mcp was restored. The
-> built-in plugin stays enabled in-editor but is **not** the active MCP. If upstream ever ships 5.8 support, drop
-> the fork for it.
+> **History (DECISIONS D-17).** The third-party `ue-mcp` node client + vendored `UE_MCP_Bridge` C++ plugin
+> (D-6 / restored in D-16) were **removed**: by mid-2026 Epic's native server, fed by the `*Toolset` plugins,
+> exposes enough (Scene/Actor/Object/Primitive/Asset/Blueprint/Material/Niagara/UMG + a `ProgrammaticToolset`
+> Python batcher) to do the level/asset/Blueprint work the bridge used to. The orphaned `GameplayAbilities`
+> plugin (the bridge's only justification, D-6) was removed in the same pass. See D-14 → D-15 → D-16 → D-17 for the
+> full back-and-forth.
 
 ## How it connects
-A TypeScript MCP server (run by **`node node_modules/ue-mcp/dist/index.js PuttBattle.uproject`** per `.mcp.json`)
-talks JSON-RPC over a **WebSocket on `ws://localhost:9877`** to the `UE_MCP_Bridge` C++ plugin running **inside the
-open editor** (module loading phase `PostEngineInit`). The editor must be open for tools to work — by design; the
-agent drives your live editor.
+The `ModelContextProtocol` plugin runs an **HTTP MCP server inside the open editor** at
+**`http://127.0.0.1:8000/mcp`** (Editor Preferences → *Model Context Protocol*: Auto Start Server, port 8000,
+URL `/mcp`, Enable Tool Search). `.mcp.json` points Claude Code at that URL. The editor must be open for tools to
+work — by design; the agent drives your live editor. There is **no node process, no `npm install`, no `:9877`
+WebSocket** any more.
 
-**Why `node`, not `npx`** (DECISIONS D-6): on Windows + Node ≥ 22, Claude Code cannot spawn an `npx`-based server
-(`npx` resolves to a `.cmd` shim Node refuses to spawn — `ENOENT`/`EINVAL` — and the MCP handshake never completes).
-Invoke **`node` on the entry script directly** — it spawns cleanly in ~250 ms. Paths are relative (Claude runs from
-the repo root), so the entry is portable.
+The server is a **toolset registry**: instead of one tool per action it advertises three discovery meta-tools —
+`list_toolsets`, `describe_toolset(name)`, `call_tool(tool_name, toolset_name, arguments)` — and the toolsets
+(`editor_toolset.toolsets.scene.SceneTools`, `…actor.ActorTools`, `…object.ObjectTools`, `…primitive.PrimitiveTools`,
+`…asset.AssetTools`, `…blueprint.BlueprintTools`, `…programmatic.ProgrammaticToolset`, `EditorToolset.EditorAppToolset`,
+`UMGToolSet`, `NiagaraToolsets…`) come from the enabled `*Toolset` plugins. **`describe_toolset` before you call**
+(read the input schema); never guess a tool name.
 
-## Setup
-The bridge is **vendored and committed** (`Plugins/UE_MCP_Bridge/`, Source + `.uplugin`), enabled in
-`PuttBattle.uproject` (with its `GameplayAbilities` hard-dependency, D-6), and patched for 5.8 — so there is **no
-`npx ue-mcp init` wizard step**. On a fresh clone:
-1. **`npm install`** from the repo root — restores `node_modules/ue-mcp` (the Node server; `node_modules/` is
-   git-ignored, `ue-mcp` is a `devDependency`).
-2. **Build the editor target.** The bridge is an Editor C++ module, so it compiles with `PuttBattleEditor`
-   (Win64 Development). **The editor must be closed to build** (it locks the editor DLL); reopen afterward.
-   (`Binaries/`/`Intermediate/` are git-ignored, so a clone compiles the bridge on first build / first editor open.)
-3. **Open the editor**; let `UE_MCP_Bridge` load (Output Log shows the WebSocket server on `:9877`).
+## Setup (fresh clone)
+1. **Enable the plugins** (already committed in `PuttBattle.uproject`): `ModelContextProtocol`, `EditorToolset`,
+   `UMGToolSet`, `NiagaraToolsets` (and `MCPClientToolset`). If a clone has them off: Edit → Plugins → search each →
+   tick Enabled → Restart.
+2. **Turn the server on:** Editor Preferences → *Model Context Protocol* → tick **Auto Start Server** (port `8000`,
+   URL `/mcp`, **Enable Tool Search** on). It starts with the editor from then on.
+3. **Open the editor.**
 4. **Restart the Claude Code session** so it loads `.mcp.json` and connects.
 
-## Committed config — `node`-direct, not `npx`
-`.mcp.json` at the repo root:
+## Committed config — `.mcp.json` at the repo root
 ```json
 {
   "mcpServers": {
-    "ue-mcp": { "command": "node", "args": ["node_modules/ue-mcp/dist/index.js", "PuttBattle.uproject"] }
+    "unreal-mcp": { "type": "http", "url": "http://127.0.0.1:8000/mcp" }
   }
 }
 ```
-`ue-mcp.yml` (repo root) configures the bridge: content roots and **disabled tool categories** (`pcg`, `foliage`,
-`gas`, `demo`). The `gas` category is disabled so **no GAS is ever authored** (D22) even though the bridge
-force-enables the `GameplayAbilities` plugin as a hard dependency — GAS stays enabled-but-unused, editor-tool-only.
+
+## Key limitation (collision channels)
+`ObjectTools.set_properties` can write a mesh component's `staticMesh` / transform / `physMaterialOverride` /
+`overrideMaterials`, but **cannot** set a component's collision channel/enabled (`PB_Floor`/`PB_Wall` `objectType`,
+`collisionEnabled`) — those go through `FBodyInstance` setters that a raw property import doesn't call. Author/finish
+PB_Floor/PB_Wall collision in the editor Details panel, or by **re-shaping an already-channeled mesh** (change its
+mesh/transform/material — the channel carries over untouched). See `docs/LEARNING.md`.
 
 ## Verification checklist (editor open)
-1. `netstat -ano | findstr 9877` → the bridge is listening.
-2. In Claude Code: `/mcp` → `ue-mcp` shows **connected**.
-3. Prompt: *"Call ue-mcp project get_status"* → returns project/engine info (UE 5.8).
-4. Prompt: *"Get the level outliner"* (`level(action="get_outliner")`) → read works.
-5. Prompt: *"Place a cube at the origin, then delete it."* → expect a **permission prompt** on the write (mutating
-   actions aren't pre-approved — that's the guardrail), and the cube appears/disappears in the viewport.
+1. In Claude Code: `/mcp` → `unreal-mcp` shows **connected**.
+2. Ask the agent to call `list_toolsets` → returns the toolset list.
+3. Ask for `SceneTools.get_current_level` → returns the loaded level path.
+4. Ask it to place an actor then delete it → expect a **permission prompt** on the write (mutating actions aren't
+   pre-approved — that's the guardrail), and the actor appears/disappears in the viewport.
 
 ## Troubleshooting
-- **`/mcp` shows ue-mcp not connected** → editor closed / bridge not loaded; OR `node_modules/ue-mcp` is missing
-  (run `npm install`); OR `.mcp.json` got reverted to an `npx` command (it must be
-  `node node_modules/ue-mcp/dist/index.js`). Reconnect after the editor is fully loaded.
-- **Tools listed but every call fails** → editor not open, or `UE_MCP_Bridge` didn't load/compile (check the Output
-  Log for its startup lines; rebuild the editor target with the editor **closed**).
-- **Bridge won't compile after an engine update** → expect the D-16 class of breaks (`FJsonObject` keys, relocated
-  headers); fix against `Engine/Source` (§11 rule 9) — the bridge is a fork we maintain until upstream ships 5.8.
+- **`/mcp` shows unreal-mcp not connected** → editor closed, or the server isn't running (Editor Preferences →
+  Model Context Protocol → Auto Start Server, then restart the editor); reconnect the session once the editor is
+  fully loaded.
+- **A `call_tool` fails with "Unknown tool"** → you passed the full dotted path as `tool_name`; pass the **bare**
+  method name plus `toolset_name` (the full dotted toolset path).
+- **Big tool results truncate** (e.g. `CaptureViewport`, `list_properties`) → the harness saves them to a file; read
+  that file (or parse server-side inside `ProgrammaticToolset.execute_tool_script` and return only what you need).
 - **Requests hang ~60 s** → keep the project **out of OneDrive/Dropbox** (cloud-sync stalls file watches).
 
 ## Security posture (read once)
-This server lets an AI modify your project and run editor scripts. Guardrails, in order: project files are in Git
-(any session's damage is a `git checkout` away — commit before big agent sessions); mutating tools are **not**
+This server lets an AI modify your project and run editor tool-scripts. Guardrails, in order: project files are in
+Git (any session's damage is a `git checkout` away — commit before big agent sessions); mutating tools are **not**
 pre-approved (`.claude/settings.json` ships an empty allow-list — you approve per-use, or add specific read-only
-actions yourself); the bridge only listens on `localhost`. Agent-facing rules: `CLAUDE.md` §11. Editing the
+tools yourself); the server only listens on `localhost`. Agent-facing rules: `CLAUDE.md` §11. Editing the
 allow-list is a **human decision** (agents must not touch it).
