@@ -392,8 +392,13 @@ bool UPBShotComponent::ServerShotStateAllows() const
 		return false;
 	}
 	// The component ticks on the server for every ball, so AtRestTimer is the
-	// authority's own at-rest measurement. A mid-shot or still-rolling ball is out.
-	if (ShotState != EPBShotState::Idle || AtRestTimer < AtRestDuration)
+	// authority's own at-rest measurement. Reject only a genuinely mid-shot ball
+	// (Rolling) or one not yet settled — NOT Aiming: on the listen-server host and
+	// in standalone, the authority releases its own shot straight from Aiming and
+	// runs this gate directly (ReleaseAim → TryExecuteServerShot) *before* flipping
+	// to Rolling. (For a remote client the server's copy of this component is Idle,
+	// so rejecting-Rolling is equivalent to the old rejecting-non-Idle there.)
+	if (ShotState == EPBShotState::Rolling || AtRestTimer < AtRestDuration)
 	{
 		return false;
 	}
