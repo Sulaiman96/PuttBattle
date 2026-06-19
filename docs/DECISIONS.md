@@ -312,3 +312,29 @@ the bridge; an upstream 5.8 release would supersede these patches. (4) The built
 `package-lock.json`, `ue-mcp.yml`, `.claude/skills/ue-mcp-*` (restored), `.mcp.json`, `CLAUDE.md` §11,
 `docs/LEARNING.md` (pending), `docs/MCP-SETUP.md` (pending), `docs/CONVENTIONS.md` §11 (pending),
 `docs/USER-ACTIONS.md` (pending).
+
+### D-17 — `ue-mcp` removed; native `unreal-mcp` is the sole editor MCP (supersedes D-16)   (2026-06-19)
+**Context:** D-16 restored + 5.8-patched the `ue-mcp` / `UE_MCP_Bridge` bridge because the built-in
+`ModelContextProtocol` (D-14) then exposed only `AgentSkillToolset`. That has changed: the native server is a
+**toolset registry** fed by the enabled `*Toolset` plugins (`EditorToolset`, `UMGToolSet`, `NiagaraToolsets`),
+now exposing Scene/Actor/Object/Primitive/Asset/Blueprint/Material/Niagara/UMG tools plus a
+`ProgrammaticToolset.execute_tool_script` Python batcher — enough for the level/asset/Blueprint work the bridge was
+kept for. Two graybox holes (H_03, H_04), a BP-CDO feel-tuning pass, and a PostProcessVolume were authored through
+the native server alone. The human asked to purge the now-redundant bridge.
+**Decision:** Remove the entire ue-mcp footprint; native `unreal-mcp` becomes the sole editor MCP (reversing D-16,
+re-affirming D-15's direction). **Deleted:** `Plugins/UE_MCP_Bridge/**`, `node_modules/`, `package.json`,
+`package-lock.json`, `ue-mcp.yml`, `.claude/skills/ue-mcp-*` (bridge-only workflows — e.g. `create_cpp_class`,
+`add_node` — the native server doesn't have). **Removed from `PuttBattle.uproject`:** `UE_MCP_Bridge` **and** the
+orphaned `GameplayAbilities` (GAS's only justification was the bridge's D-6 hard dependency, confirmed unused in
+`Source/` — reversing D-16's GAS re-enable, completing D-15's GAS removal). `.mcp.json` already pointed at
+`unreal-mcp` (HTTP `:8000`); dropped the parked `_disabledServers.ue-mcp` entry.
+**Known native limitation (carried, not blocking):** `ObjectTools.set_properties` cannot set a component's
+collision channel/enabled (`PB_Floor`/`PB_Wall` `objectType`/`collisionEnabled`) — those need `FBodyInstance`
+setters; finish such collision in the editor Details panel, or by re-shaping an already-channeled mesh (its channel
+carries over). Recorded in `docs/LEARNING.md` + `CLAUDE.md` §11.
+**Requires (human, on next editor restart):** the bridge + GAS modules stay loaded in the *current* editor session
+(harmless); on the next restart they won't load — regenerate project files (so `.sln`/vcxproj drop the bridge
+module) and let the editor rebuild. Then verify the native server still connects (`/mcp` → `unreal-mcp`).
+**Touches:** `PuttBattle.uproject`, `.mcp.json`, `Plugins/UE_MCP_Bridge/**` (deleted), `node_modules/` +
+`package.json` + `package-lock.json` + `ue-mcp.yml` (deleted), `.claude/skills/ue-mcp-*` (deleted), `CLAUDE.md` §11,
+`docs/CONVENTIONS.md` §11, `docs/MCP-SETUP.md`, `docs/repo-root-files/.mcp.json`, `docs/USER-ACTIONS.md` T0.3.

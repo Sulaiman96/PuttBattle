@@ -55,11 +55,15 @@
 			"Enabled": true
 		},
 		{
-			"Name": "GameplayAbilities",
+			"Name": "EditorToolset",
 			"Enabled": true
 		},
 		{
-			"Name": "UE_MCP_Bridge",
+			"Name": "UMGToolSet",
+			"Enabled": true
+		},
+		{
+			"Name": "NiagaraToolsets",
 			"Enabled": true
 		}
 	]
